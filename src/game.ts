@@ -109,7 +109,6 @@ export class Game {
     this.sources.reset();
     this.satellites.reset();
     this.groundhogs.reset();
-    this.groundhogs.spawnInitialGroundhogs(3, this.telescope.state.x);  // Start with 3 groundhogs
     this.deer.reset();
     this.ufos.reset();
     this.telescope = new Telescope(this.renderer);
@@ -860,6 +859,16 @@ export class Game {
         'center'
       );
     }
+
+    // Disclaimer
+    this.renderer.drawText(
+      'Not affiliated with Green Bank Observatory',
+      centerX,
+      this.renderer.height - 20,
+      '#666666',
+      12,
+      'center'
+    );
   }
 
   private drawPauseScreen(): void {

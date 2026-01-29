@@ -92,7 +92,7 @@ export class SatelliteManager {
     const spawnEdge = Math.floor(Math.random() * 3); // 0: left, 1: right, 2: top
 
     let x: number, y: number, vx: number, vy: number;
-    const speed = BASE_SATELLITE_SPEED * (0.8 + Math.random() * 0.4) * difficultyMultiplier;
+    const speed = BASE_SATELLITE_SPEED * (0.8 + Math.random() * 0.4) * (1 + (difficultyMultiplier - 1) * 0.15);
 
     switch (spawnEdge) {
       case 0: // Left edge
