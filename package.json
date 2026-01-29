@@ -1,0 +1,17 @@
+{
+  "name": "gbt_game",
+  "module": "src/main.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "bun run server.ts",
+    "build": "bun build src/main.ts --outdir dist --minify",
+    "bundle": "bun build src/main.ts --outfile bundle.js"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}
