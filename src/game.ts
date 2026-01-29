@@ -320,15 +320,11 @@ export class Game {
         groundhog.wasHit = true;
         this.audio.playSatelliteHit();
 
-        // Get wheel position before damaging
-        const wheelPos = this.telescope.getWheelPosition(
-          this.telescope.state.wheels.findIndex(w => !w.damaged)
-        );
-
-        // Damage a wheel
-        const gameOver = this.telescope.damageWheel();
+        // Damage the wheel closest to the groundhog
+        const { gameOver, wheelIndex } = this.telescope.damageWheel(groundhog.x);
 
         // Spawn wheel explosion at the damaged wheel's position
+        const wheelPos = this.telescope.getWheelPosition(wheelIndex);
         if (wheelPos) {
           this.wheelExplosions.push({ x: wheelPos.x, y: wheelPos.y, progress: 0 });
         }

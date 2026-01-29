@@ -99,17 +99,44 @@ export class Telescope {
     this.state.movingRight = right;
   }
 
-  // Damage a wheel (returns true if game should end)
-  damageWheel(): boolean {
-    const undamagedIndex = this.state.wheels.findIndex(w => !w.damaged);
-    if (undamagedIndex !== -1) {
-      const wheel = this.state.wheels[undamagedIndex];
+  // Damage a wheel closest to the given x position (returns true if game should end)
+  // Also returns the index of the damaged wheel
+  damageWheel(targetX?: number): { gameOver: boolean; wheelIndex: number } {
+    let wheelIndex = -1;
+
+    if (targetX !== undefined) {
+      // Find the closest undamaged wheel to the target position
+      const wheelSpacing = TRACK_WIDTH / 7;
+      let closestDist = Infinity;
+
+      for (let i = 0; i < this.state.wheels.length; i++) {
+        const wheel = this.state.wheels[i];
+        if (wheel && !wheel.damaged) {
+          const wheelX = this.state.x - TRACK_WIDTH / 2 + i * wheelSpacing;
+          const dist = Math.abs(wheelX - targetX);
+          if (dist < closestDist) {
+            closestDist = dist;
+            wheelIndex = i;
+          }
+        }
+      }
+    } else {
+      // Fall back to first undamaged wheel
+      wheelIndex = this.state.wheels.findIndex(w => !w.damaged);
+    }
+
+    if (wheelIndex !== -1) {
+      const wheel = this.state.wheels[wheelIndex];
       if (wheel) {
         wheel.damaged = true;
       }
     }
+
     // Return true if all wheels are destroyed
-    return this.state.wheels.every(w => w.damaged);
+    return {
+      gameOver: this.state.wheels.every(w => w.damaged),
+      wheelIndex
+    };
   }
 
   // Repair a wheel (returns true if a wheel was repaired)
