@@ -1021,11 +1021,11 @@ export class Game {
 
     // Title
     this.renderer.drawText('GAME OVER', centerX, y, '#ff4444', 42, 'center');
-    y += 30;
+    y += 50;
 
     // Cause of death
     this.renderer.drawText('All wheels destroyed!', centerX, y, '#ff8888', 16, 'center');
-    y += 30;
+    y += 35;
 
     // Final score
     this.renderer.drawText(`Final: ${formatDollars(this.state.score)}`, centerX, y, '#ffffff', 28, 'center');
@@ -1057,7 +1057,7 @@ export class Game {
           this.renderer.ctx.strokeRect(boxX, boxTop, boxWidth, boxHeight);
 
           // Letter (vertically centered in box)
-          const textY = boxTop + boxHeight / 2 + 10; // +10 to account for text baseline
+          const textY = boxTop + boxHeight / 2 + 8; // offset for text baseline
           if (char) {
             this.renderer.drawText(char, boxX + boxWidth / 2, textY, '#ffffff', 28, 'center');
           } else if (i === this.playerInitials.length) {
