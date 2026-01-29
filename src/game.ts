@@ -583,8 +583,13 @@ export class Game {
       if (result.success) {
         this.submitState = 'submitted';
         this.submitRank = result.rank || null;
-        // Reload leaderboard to show updated scores
-        await this.loadLeaderboard();
+        // Use the leaderboard from the response to avoid cache issues
+        if (result.leaderboard) {
+          this.leaderboard = result.leaderboard;
+        } else {
+          // Fallback to fetching if leaderboard not in response
+          await this.loadLeaderboard();
+        }
       } else {
         this.submitState = 'error';
         console.error('Submit failed:', result.error);
@@ -1081,8 +1086,12 @@ export class Game {
         this.renderer.drawText('Submitting...', centerX, y, '#ffff00', 18, 'center');
         y += 35;
       } else if (this.submitState === 'submitted') {
-        if (this.submitRank && this.submitRank <= 10) {
-          this.renderer.drawText(`Ranked #${this.submitRank}!`, centerX, y, '#00ff00', 20, 'center');
+        if (this.submitRank) {
+          if (this.submitRank <= 10) {
+            this.renderer.drawText(`Ranked #${this.submitRank}!`, centerX, y, '#00ff00', 20, 'center');
+          } else {
+            this.renderer.drawText(`Ranked #${this.submitRank} - Keep trying!`, centerX, y, '#ffaa00', 16, 'center');
+          }
         } else {
           this.renderer.drawText('Score submitted!', centerX, y, '#00ff00', 18, 'center');
         }

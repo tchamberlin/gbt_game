@@ -144,6 +144,7 @@ export interface SubmitResult {
   success: boolean;
   rank?: number;
   error?: string;
+  leaderboard?: LeaderboardEntry[];
 }
 
 export const SOURCE_CONFIGS: Record<SourceType, Omit<SourceConfig, 'type'>> = {

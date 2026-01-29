@@ -116,18 +116,20 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       rank: index + 1,
     }));
 
-    // Find the new entry's rank
-    const newRank = topEntries.findIndex(
+    // Find the new entry's rank in the full sorted list (before slicing)
+    const fullRank = entries.findIndex(
       (e) => e.name === newEntry.name && e.score === newEntry.score && e.timestamp === newEntry.timestamp
     );
-    const finalRank = newRank >= 0 ? newRank + 1 : null;
+    const finalRank = fullRank >= 0 ? fullRank + 1 : null;
 
     // Save updated leaderboard
     await env.LEADERBOARD.put('scores', JSON.stringify(topEntries));
 
+    // Return the updated leaderboard with the response to avoid cache issues
     return new Response(JSON.stringify({
       success: true,
       rank: finalRank,
+      leaderboard: topEntries,
     }), {
       headers: { 'Content-Type': 'application/json' },
     });
