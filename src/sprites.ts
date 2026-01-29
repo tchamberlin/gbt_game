@@ -10,12 +10,12 @@ const COLORS = {
   dishLight: '#e0e0e0',
   dishMid: '#b0b0b0',
   dishDark: '#808080',
-  structure: '#404040',
-  structureLight: '#606060',
-  wheel: '#303030',
-  wheelHighlight: '#505050',
-  feedArm: '#606060',
-  feedArmLight: '#808080',
+  structure: '#e0e0e0',
+  structureLight: '#ffffff',
+  wheel: '#c0c0c0',
+  wheelHighlight: '#e0e0e0',
+  feedArm: '#ffffff',
+  feedArmLight: '#ffffff',
   receiver: '#ff4444',
   ground: '#1a2a1a',
 };
@@ -46,14 +46,14 @@ export function drawGBT(
   }
 
   // Draw base carriage
-  ctx.fillStyle = '#2a2a2a';
+  ctx.fillStyle = '#e0e0e0';
   ctx.fillRect(x - trackWidth / 2, groundY - wheelRadius * 2 - baseHeight, trackWidth, baseHeight);
 
   // Draw support tower (alidade)
   const towerBaseY = groundY - wheelRadius * 2 - baseHeight;
   const towerTopY = towerBaseY - towerHeight;
 
-  ctx.fillStyle = '#252525';
+  ctx.fillStyle = '#d0d0d0';
   ctx.beginPath();
   ctx.moveTo(x - 25, towerBaseY);
   ctx.lineTo(x - 12, towerTopY);
@@ -63,7 +63,7 @@ export function drawGBT(
   ctx.fill();
 
   // Tower detail lines
-  ctx.strokeStyle = '#333';
+  ctx.strokeStyle = '#ffffff';
   ctx.lineWidth = 1;
   for (let i = 1; i <= 3; i++) {
     const t = i / 4;
@@ -85,7 +85,7 @@ export function drawGBT(
 
   // Dish - parabolic arc, concave side faces RIGHT (toward beam direction)
   // The curve bulges LEFT so the open/concave side faces right
-  ctx.strokeStyle = '#3a3a3a';
+  ctx.strokeStyle = '#ffffff';
   ctx.lineWidth = 4;
   ctx.beginPath();
   ctx.moveTo(0, -dishRadius);
@@ -93,7 +93,7 @@ export function drawGBT(
   ctx.stroke();
 
   // Dish surface detail (inner edge)
-  ctx.strokeStyle = '#4a4a4a';
+  ctx.strokeStyle = '#c0c0c0';
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(-3, -dishRadius + 5);
@@ -101,11 +101,11 @@ export function drawGBT(
   ctx.stroke();
 
   // Back structure (behind the dish)
-  ctx.fillStyle = '#2a2a2a';
+  ctx.fillStyle = '#e0e0e0';
   ctx.fillRect(-dishRadius * 0.5, -20, 20, 40);
 
   // Feed arm - offset design, from bottom curving to receiver in front of dish
-  ctx.strokeStyle = '#3a3a3a';
+  ctx.strokeStyle = '#ffffff';
   ctx.lineWidth = 3;
 
   // Main arm from bottom of dish to receiver
@@ -122,7 +122,7 @@ export function drawGBT(
   ctx.stroke();
 
   // Receiver at focal point (in front of dish)
-  ctx.fillStyle = '#333';
+  ctx.fillStyle = '#c0c0c0';
   ctx.beginPath();
   ctx.arc(dishRadius * 0.6, -dishRadius * 0.3, 6, 0, Math.PI * 2);
   ctx.fill();
