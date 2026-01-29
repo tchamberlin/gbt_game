@@ -1,7 +1,13 @@
 {
-  "name": "gbt-game",
-  "compatibility_date": "2026-01-29",
-  "assets": {
-    "directory": "./dist"
-  }
+	"name": "gbt-game",
+	"compatibility_date": "2026-01-29",
+	"assets": {
+		"directory": "./dist"
+	},
+	"kv_namespaces": [
+		{
+			"binding": "LEADERBOARD",
+			"id": "8c6631f86eb94951bef0f3ab2090c958"
+		}
+	]
 }

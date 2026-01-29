@@ -133,6 +133,19 @@ export interface BeamState {
   triangle: Triangle;
 }
 
+export interface LeaderboardEntry {
+  rank: number;
+  name: string;
+  score: number;
+  timestamp: number;
+}
+
+export interface SubmitResult {
+  success: boolean;
+  rank?: number;
+  error?: string;
+}
+
 export const SOURCE_CONFIGS: Record<SourceType, Omit<SourceConfig, 'type'>> = {
   pulsar: {
     size: 8,

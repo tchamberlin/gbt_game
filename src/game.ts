@@ -1,6 +1,7 @@
 // Game state management, scoring, and difficulty
 
-import type { GameState, SatelliteDebris } from './types.ts';
+import type { GameState, SatelliteDebris, LeaderboardEntry, SubmitResult } from './types.ts';
+import { fetchLeaderboard, submitScore, generateGameToken } from './leaderboard.ts';
 import type { Renderer } from './renderer.ts';
 import { Telescope } from './telescope.ts';
 import { SourceManager } from './sources.ts';
@@ -52,6 +53,16 @@ export class Game {
   private nextDebrisId: number = 0;
   private radarCostAccumulator: number = 0;
 
+  // Leaderboard state
+  private leaderboard: LeaderboardEntry[] = [];
+  private leaderboardLoading: boolean = false;
+  private playerInitials: string = '';
+  private initialsInputActive: boolean = false;
+  private submitState: 'idle' | 'submitting' | 'submitted' | 'error' = 'idle';
+  private submitRank: number | null = null;
+  private gameStartTime: number = 0;
+  private cursorBlink: number = 0;
+
   constructor(renderer: Renderer) {
     this.renderer = renderer;
     this.telescope = new Telescope(renderer);
@@ -93,6 +104,7 @@ export class Game {
     this.state.isStarted = true;
     this.state.isPaused = false;
     this.audio.enable();
+    this.gameStartTime = Date.now();
     this.reset();
   }
 
@@ -120,6 +132,13 @@ export class Game {
     this.activeMouseButton = null;
     this.satelliteDebris = [];
     this.radarCostAccumulator = 0;
+
+    // Reset leaderboard state
+    this.playerInitials = '';
+    this.initialsInputActive = false;
+    this.submitState = 'idle';
+    this.submitRank = null;
+    this.gameStartTime = Date.now();
   }
 
   pause(): void {
@@ -146,6 +165,13 @@ export class Game {
     // Handle game over explosion animation
     if (this.state.isGameOver) {
       this.explosionProgress += deltaTime * 0.5; // Explosion takes ~2 seconds
+      this.cursorBlink += deltaTime;
+
+      // Activate initials input after explosion
+      if (this.explosionProgress > 0.5 && !this.initialsInputActive && this.submitState === 'idle') {
+        this.initialsInputActive = true;
+        this.loadLeaderboard();
+      }
       return;
     }
 
@@ -534,6 +560,40 @@ export class Game {
     this.scorePopups = this.scorePopups.filter((p) => p.age < 1);
   }
 
+  private async loadLeaderboard(): Promise<void> {
+    this.leaderboardLoading = true;
+    try {
+      this.leaderboard = await fetchLeaderboard();
+    } catch (error) {
+      console.error('Failed to load leaderboard:', error);
+      this.leaderboard = [];
+    }
+    this.leaderboardLoading = false;
+  }
+
+  private async handleScoreSubmit(): Promise<void> {
+    if (this.submitState !== 'idle' || this.playerInitials.length !== 3) return;
+
+    this.submitState = 'submitting';
+    const token = generateGameToken(this.state.score, this.gameStartTime);
+
+    try {
+      const result = await submitScore(this.playerInitials, this.state.score, token);
+      if (result.success) {
+        this.submitState = 'submitted';
+        this.submitRank = result.rank || null;
+        // Reload leaderboard to show updated scores
+        await this.loadLeaderboard();
+      } else {
+        this.submitState = 'error';
+        console.error('Submit failed:', result.error);
+      }
+    } catch (error) {
+      this.submitState = 'error';
+      console.error('Submit error:', error);
+    }
+  }
+
   private drawDebris(debris: SatelliteDebris): void {
     const ctx = this.renderer.ctx;
     const size = DEBRIS_SIZE;
@@ -628,6 +688,25 @@ export class Game {
   }
 
   handleKeyDown(key: string): void {
+    // Handle initials input during game over
+    if (this.state.isGameOver && this.initialsInputActive && this.submitState === 'idle') {
+      // Letters A-Z
+      if (/^[a-zA-Z]$/.test(key) && this.playerInitials.length < 3) {
+        this.playerInitials += key.toUpperCase();
+        return;
+      }
+      // Backspace
+      if (key === 'Backspace' && this.playerInitials.length > 0) {
+        this.playerInitials = this.playerInitials.slice(0, -1);
+        return;
+      }
+      // Enter to submit
+      if (key === 'Enter' && this.playerInitials.length === 3) {
+        this.handleScoreSubmit();
+        return;
+      }
+    }
+
     if (key === 'Escape' || key === 'p' || key === 'P') {
       if (this.state.isStarted && !this.state.isGameOver) {
         this.togglePause();
@@ -635,6 +714,10 @@ export class Game {
     }
     if (key === 'r' || key === 'R') {
       if (this.state.isStarted) {
+        // Only allow restart during game over if not inputting initials or already submitted
+        if (this.state.isGameOver && this.initialsInputActive && this.submitState === 'idle' && this.playerInitials.length > 0) {
+          return; // Block R during initials input (could be typing "R")
+        }
         this.reset();
       }
     }
@@ -886,29 +969,119 @@ export class Game {
 
   private drawGameOverScreen(): void {
     // Darken background
-    this.renderer.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    this.renderer.ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
     this.renderer.ctx.fillRect(0, 0, this.renderer.width, this.renderer.height);
 
     const centerX = this.renderer.width / 2;
-    const centerY = this.renderer.height / 2;
+    let y = 60;
 
     // Title
-    this.renderer.drawText('GAME OVER', centerX, centerY - 80, '#ff4444', 56, 'center');
+    this.renderer.drawText('GAME OVER', centerX, y, '#ff4444', 48, 'center');
+    y += 35;
 
     // Cause of death
-    this.renderer.drawText('All wheels destroyed!', centerX, centerY - 30, '#ff8888', 24, 'center');
+    this.renderer.drawText('All wheels destroyed!', centerX, y, '#ff8888', 18, 'center');
+    y += 35;
 
     // Final score
-    this.renderer.drawText(`Final: ${formatDollars(this.state.score)}`, centerX, centerY + 20, '#ffffff', 32, 'center');
+    this.renderer.drawText(`Final: ${formatDollars(this.state.score)}`, centerX, y, '#ffffff', 32, 'center');
+    y += 45;
 
-    // High score
-    if (this.state.score >= this.state.highScore) {
-      this.renderer.drawText('NEW HIGH SCORE!', centerX, centerY + 60, '#ffff00', 24, 'center');
-    } else {
-      this.renderer.drawText(`High Score: ${formatDollars(this.state.highScore)}`, centerX, centerY + 60, '#888888', 20, 'center');
+    // Initials input section
+    if (this.initialsInputActive) {
+      if (this.submitState === 'idle') {
+        this.renderer.drawText('ENTER INITIALS:', centerX, y, '#ffff00', 18, 'center');
+        y += 30;
+
+        // Draw initials boxes
+        const boxWidth = 40;
+        const boxSpacing = 10;
+        const totalWidth = 3 * boxWidth + 2 * boxSpacing;
+        const startX = centerX - totalWidth / 2;
+
+        for (let i = 0; i < 3; i++) {
+          const boxX = startX + i * (boxWidth + boxSpacing);
+          const char = this.playerInitials[i] || '';
+
+          // Box background
+          this.renderer.ctx.fillStyle = '#222244';
+          this.renderer.ctx.fillRect(boxX, y - 25, boxWidth, 35);
+          this.renderer.ctx.strokeStyle = i === this.playerInitials.length ? '#ffff00' : '#444488';
+          this.renderer.ctx.lineWidth = 2;
+          this.renderer.ctx.strokeRect(boxX, y - 25, boxWidth, 35);
+
+          // Letter
+          if (char) {
+            this.renderer.drawText(char, boxX + boxWidth / 2, y, '#ffffff', 28, 'center');
+          } else if (i === this.playerInitials.length) {
+            // Blinking cursor
+            const showCursor = Math.floor(this.cursorBlink * 3) % 2 === 0;
+            if (showCursor) {
+              this.renderer.drawText('_', boxX + boxWidth / 2, y, '#ffff00', 28, 'center');
+            }
+          }
+        }
+        y += 25;
+
+        // Submit hint
+        if (this.playerInitials.length === 3) {
+          this.renderer.drawText('[ENTER] Submit', centerX, y, '#00ff00', 16, 'center');
+        } else {
+          this.renderer.drawText('Type A-Z, [BACKSPACE] to delete', centerX, y, '#888888', 14, 'center');
+        }
+        y += 35;
+      } else if (this.submitState === 'submitting') {
+        this.renderer.drawText('Submitting...', centerX, y, '#ffff00', 20, 'center');
+        y += 55;
+      } else if (this.submitState === 'submitted') {
+        if (this.submitRank && this.submitRank <= 10) {
+          this.renderer.drawText(`Ranked #${this.submitRank}!`, centerX, y, '#00ff00', 24, 'center');
+        } else {
+          this.renderer.drawText('Score submitted!', centerX, y, '#00ff00', 20, 'center');
+        }
+        y += 55;
+      } else if (this.submitState === 'error') {
+        this.renderer.drawText('Submit failed - try again later', centerX, y, '#ff4444', 16, 'center');
+        y += 55;
+      }
+
+      // Leaderboard section
+      this.renderer.drawText('--- TOP 10 ---', centerX, y, '#888888', 16, 'center');
+      y += 25;
+
+      if (this.leaderboardLoading) {
+        this.renderer.drawText('Loading...', centerX, y, '#666666', 14, 'center');
+      } else if (this.leaderboard.length === 0) {
+        this.renderer.drawText('No scores yet - be the first!', centerX, y, '#666666', 14, 'center');
+      } else {
+        for (const entry of this.leaderboard) {
+          const isPlayer = this.submitState === 'submitted' &&
+            entry.name === this.playerInitials &&
+            entry.score === this.state.score;
+
+          const color = isPlayer ? '#ffff00' : '#cccccc';
+          const marker = isPlayer ? ' <-- YOU' : '';
+
+          const rankStr = `#${entry.rank}`;
+          const scoreStr = formatDollars(entry.score);
+          const line = `${rankStr.padEnd(4)} ${entry.name}    ${scoreStr}${marker}`;
+
+          this.renderer.drawText(line, centerX, y, color, 14, 'center');
+          y += 20;
+        }
+      }
     }
 
-    // Restart hint
-    this.renderer.drawText('Press R to play again', centerX, centerY + 110, '#cccccc', 18, 'center');
+    // Restart hint at bottom
+    const restartY = this.renderer.height - 40;
+    const hint = this.submitState === 'idle' && this.playerInitials.length > 0
+      ? 'Finish entering initials or'
+      : '[R] Play Again';
+    this.renderer.drawText(hint, centerX, restartY, '#888888', 16, 'center');
+    if (this.submitState !== 'idle' || this.playerInitials.length === 0) {
+      // Nothing extra needed
+    } else {
+      this.renderer.drawText('[R] Play Again (skip leaderboard)', centerX, restartY + 20, '#666666', 12, 'center');
+    }
   }
 }

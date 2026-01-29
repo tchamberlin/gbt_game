@@ -5,10 +5,13 @@
   "private": true,
   "scripts": {
     "dev": "bun run server.ts",
-    "build": "rm -rf dist && mkdir -p dist/docs && bun build src/main.ts --outfile dist/bundle.js --minify && cp index.html gbt.png gbt.svg dist/ && cp -r claude_code_log/* dist/docs/",
-    "bundle": "bun build src/main.ts --outfile bundle.js"
+    "dev:cf": "bunx wrangler pages dev ./dist --kv=LEADERBOARD",
+    "build": "rm -rf dist && mkdir -p dist/docs dist/functions && bun build src/main.ts --outfile dist/bundle.js --minify && cp index.html gbt.png gbt.svg dist/ && cp -r claude_code_log/* dist/docs/ && cp -r functions dist/",
+    "bundle": "bun build src/main.ts --outfile bundle.js",
+    "deploy": "bun run build && bunx wrangler pages deploy ./dist"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260129.0",
     "@types/bun": "latest"
   },
   "peerDependencies": {

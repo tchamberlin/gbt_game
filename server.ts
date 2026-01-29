@@ -1,5 +1,8 @@
 // Development server using Bun's built-in server
 
+// In-memory leaderboard for local development
+let mockLeaderboard: { rank: number; name: string; score: number; timestamp: number }[] = [];
+
 async function bundle() {
   console.log('Bundling...');
   const result = await Bun.build({
@@ -31,6 +34,65 @@ const server = Bun.serve({
   async fetch(request) {
     const url = new URL(request.url);
     let path = url.pathname;
+
+    // API routes for local development
+    if (path === '/api/leaderboard' && request.method === 'GET') {
+      return new Response(JSON.stringify(mockLeaderboard), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (path === '/api/submit-score' && request.method === 'POST') {
+      try {
+        const body = await request.json() as { name: string; score: number; gameToken: string };
+        const { name, score, gameToken } = body;
+
+        // Validate name
+        const normalizedName = (name || '').toUpperCase().trim();
+        if (!/^[A-Z]{3}$/.test(normalizedName)) {
+          return new Response(JSON.stringify({ success: false, error: 'Name must be exactly 3 letters' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+
+        // Validate score
+        if (typeof score !== 'number' || !Number.isFinite(score)) {
+          return new Response(JSON.stringify({ success: false, error: 'Invalid score' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+
+        // Add to leaderboard
+        const newEntry = {
+          rank: 0,
+          name: normalizedName,
+          score: Math.floor(Math.max(0, Math.min(10_000_000, score))),
+          timestamp: Date.now(),
+        };
+
+        mockLeaderboard.push(newEntry);
+        mockLeaderboard.sort((a, b) => b.score - a.score);
+        mockLeaderboard = mockLeaderboard.slice(0, 10).map((e, i) => ({ ...e, rank: i + 1 }));
+
+        const rank = mockLeaderboard.findIndex(
+          (e) => e.name === newEntry.name && e.score === newEntry.score && e.timestamp === newEntry.timestamp
+        );
+
+        return new Response(JSON.stringify({
+          success: true,
+          rank: rank >= 0 ? rank + 1 : null,
+        }), {
+          headers: { 'Content-Type': 'application/json' },
+        });
+      } catch {
+        return new Response(JSON.stringify({ success: false, error: 'Invalid request' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+    }
 
     // Default to index.html
     if (path === '/') {
@@ -64,3 +126,4 @@ const server = Bun.serve({
 });
 
 console.log(`Server running at http://localhost:${server.port}`);
+console.log('Mock leaderboard API enabled at /api/leaderboard and /api/submit-score');
