@@ -158,4 +158,11 @@ export class GroundhogManager {
     this.spawnTimer = 0;
     this.elapsedTime = 0;
   }
+
+  spawnInitialGroundhogs(count: number, gbtX: number): void {
+    const difficultyMultiplier = 1;  // Starting difficulty
+    for (let i = 0; i < count; i++) {
+      this.spawnGroundhog(difficultyMultiplier, gbtX);
+    }
+  }
 }

@@ -103,6 +103,7 @@ export class Game {
     this.sources.reset();
     this.satellites.reset();
     this.groundhogs.reset();
+    this.groundhogs.spawnInitialGroundhogs(3, this.telescope.state.x);  // Start with 3 groundhogs
     this.telescope = new Telescope(this.renderer);
     this.scorePopups = [];
     this.explosionProgress = 0;
@@ -141,9 +142,9 @@ export class Game {
       return;
     }
 
-    // Update elapsed time and difficulty
+    // Update elapsed time and difficulty (level increases by 1 every 30 seconds)
     this.state.elapsedTime += deltaTime;
-    this.state.difficultyLevel = 1 + Math.floor(this.state.elapsedTime / DIFFICULTY_INTERVAL) * 0.2;
+    this.state.difficultyLevel = 1 + Math.floor(this.state.elapsedTime / DIFFICULTY_INTERVAL);
 
     // Update telescope (includes movement and jumping)
     this.telescope.update(deltaTime);
