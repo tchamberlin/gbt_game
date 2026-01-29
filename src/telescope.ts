@@ -10,7 +10,7 @@ const BASE_MOVE_SPEED = 200; // pixels per second at full wheels
 const JUMP_VELOCITY = -450;  // pixels per second (negative = upward)
 const GRAVITY = 1200;        // pixels per second squared
 const MIN_X = 100;           // Left boundary
-const MAX_X_OFFSET = 300;    // Right boundary offset from screen width
+const MAX_X_OFFSET = 100;    // Right boundary offset from screen width
 
 // GBT dimensions for calculating dish position (must match sprites.ts)
 const WHEEL_RADIUS = 8;
