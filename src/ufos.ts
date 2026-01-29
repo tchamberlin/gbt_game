@@ -44,6 +44,7 @@ export class UFOManager {
       health: UFO_HEALTH,
       hasBeenDamaged: false,
       wasHit: false,
+      stolenWheels: 0,
     };
   }
 
@@ -52,6 +53,7 @@ export class UFOManager {
     ufo.health = UFO_HEALTH;
     ufo.hasBeenDamaged = false;
     ufo.wasHit = false;
+    ufo.stolenWheels = 0;
   }
 
   update(deltaTime: number, difficultyLevel: number, gbtX: number, gbtY: number): void {
@@ -161,6 +163,7 @@ export class UFOManager {
     ufo.health = UFO_HEALTH;
     ufo.hasBeenDamaged = false;
     ufo.wasHit = false;
+    ufo.stolenWheels = 0;
   }
 
   getUFOs(): UFO[] {
@@ -197,8 +200,18 @@ export class UFOManager {
     }
   }
 
-  // Damage a UFO, returns true if destroyed
-  damageUFO(id: number, damage: number): boolean {
+  // Set stolen wheels on a UFO
+  setUFOStolenWheels(id: number, count: number): void {
+    for (const ufo of this.ufoPool.getActive()) {
+      if (ufo.id === id) {
+        ufo.stolenWheels = count;
+        break;
+      }
+    }
+  }
+
+  // Damage a UFO, returns destruction status and dropped wheels
+  damageUFO(id: number, damage: number): { destroyed: boolean; droppedWheels: number } {
     for (const ufo of this.ufoPool.getActive()) {
       if (ufo.id === id) {
         ufo.hasBeenDamaged = true;
@@ -211,13 +224,21 @@ export class UFOManager {
 
         if (ufo.health <= 0) {
           ufo.state = 'destroyed';
+          // Calculate wheel drops: always drop 1, 20% chance to drop 2nd
+          let droppedWheels = 0;
+          if (ufo.stolenWheels > 0) {
+            droppedWheels = 1;
+            if (ufo.stolenWheels > 1 && Math.random() < 0.2) {
+              droppedWheels = 2;
+            }
+          }
           this.ufoPool.release(ufo);
-          return true;
+          return { destroyed: true, droppedWheels };
         }
-        return false;
+        return { destroyed: false, droppedWheels: 0 };
       }
     }
-    return false;
+    return { destroyed: false, droppedWheels: 0 };
   }
 
   draw(): void {
@@ -229,7 +250,8 @@ export class UFOManager {
         ufo.state,
         this.elapsedTime,
         ufo.health / UFO_HEALTH,  // health ratio 0-1
-        ufo.hasBeenDamaged
+        ufo.hasBeenDamaged,
+        ufo.stolenWheels
       );
     }
   }

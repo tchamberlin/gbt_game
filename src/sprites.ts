@@ -460,7 +460,8 @@ export function drawUFO(
   state: UFOState,
   animPhase: number,
   healthRatio: number = 1,  // 0-1, where 1 is full health
-  hasBeenDamaged: boolean = false
+  hasBeenDamaged: boolean = false,
+  stolenWheels: number = 0
 ): void {
   const ctx = renderer.ctx;
   const cache = SpriteCache.getInstance();
@@ -474,6 +475,44 @@ export function drawUFO(
     Math.floor(x - sprite.originX),
     Math.floor(y - sprite.originY)
   );
+
+  // Draw stolen wheels hanging below UFO
+  if (stolenWheels > 0) {
+    const wheelRadius = 6;
+    const wheelY = y + 18; // below UFO body
+
+    // Draw tractor beam effect when carrying wheels
+    ctx.fillStyle = 'rgba(0, 255, 100, 0.2)';
+    ctx.beginPath();
+    ctx.moveTo(x - 15, y + 8);
+    ctx.lineTo(x + 15, y + 8);
+    ctx.lineTo(x + 10, y + 25);
+    ctx.lineTo(x - 10, y + 25);
+    ctx.closePath();
+    ctx.fill();
+
+    // Draw first wheel
+    ctx.fillStyle = '#c0c0c0';
+    ctx.beginPath();
+    ctx.arc(x - (stolenWheels === 2 ? 7 : 0), wheelY, wheelRadius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#e0e0e0';
+    ctx.beginPath();
+    ctx.arc(x - (stolenWheels === 2 ? 7 : 0), wheelY, wheelRadius - 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Draw second wheel if present
+    if (stolenWheels === 2) {
+      ctx.fillStyle = '#c0c0c0';
+      ctx.beginPath();
+      ctx.arc(x + 7, wheelY, wheelRadius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#e0e0e0';
+      ctx.beginPath();
+      ctx.arc(x + 7, wheelY, wheelRadius - 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
 
   // Draw dive indicator when diving
   if (state === 'diving') {
@@ -496,6 +535,46 @@ export function drawUFO(
     // Arc goes from top, clockwise, showing remaining health
     ctx.arc(x, y, ufoSize + 5, -Math.PI / 2, -Math.PI / 2 + healthRatio * Math.PI * 2);
     ctx.stroke();
+  }
+}
+
+// Draw a dropped wheel on the ground
+export function drawDroppedWheel(
+  renderer: Renderer,
+  x: number,
+  y: number,
+  isOnGround: boolean
+): void {
+  const ctx = renderer.ctx;
+  const radius = 12;
+
+  // Wheel body
+  ctx.fillStyle = '#c0c0c0';
+  ctx.beginPath();
+  ctx.arc(Math.floor(x), Math.floor(y), radius, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Wheel highlight
+  ctx.fillStyle = '#e0e0e0';
+  ctx.beginPath();
+  ctx.arc(Math.floor(x), Math.floor(y), radius - 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Wheel hub
+  ctx.fillStyle = '#a0a0a0';
+  ctx.beginPath();
+  ctx.arc(Math.floor(x), Math.floor(y), 3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Blinking indicator if on ground (collectible)
+  if (isOnGround) {
+    const blink = Math.sin(Date.now() / 150) > 0;
+    if (blink) {
+      ctx.fillStyle = '#00ff00';
+      ctx.beginPath();
+      ctx.arc(x, y - radius - 5, 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 }
 

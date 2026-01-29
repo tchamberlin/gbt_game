@@ -127,6 +127,15 @@ export interface UFO {
   health: number;             // health points (0 = destroyed)
   hasBeenDamaged: boolean;    // true after first damage (shows health bar)
   wasHit: boolean;            // already collided with GBT this pass
+  stolenWheels: number;       // 0, 1, or 2 wheels currently carried
+}
+
+export interface DroppedWheel {
+  id: number;
+  x: number;
+  y: number;
+  vy: number;                 // falling velocity
+  isOnGround: boolean;        // true when landed
 }
 
 export interface BeamState {

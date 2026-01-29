@@ -1,6 +1,6 @@
 // Game state management, scoring, and difficulty
 
-import type { GameState, SatelliteDebris, LeaderboardEntry, SubmitResult } from './types.ts';
+import type { GameState, SatelliteDebris, DroppedWheel, LeaderboardEntry, SubmitResult } from './types.ts';
 import { fetchLeaderboard, submitScore, generateGameToken } from './leaderboard.ts';
 import type { Renderer } from './renderer.ts';
 import { Telescope } from './telescope.ts';
@@ -11,7 +11,7 @@ import { DeerManager } from './deer.ts';
 import { UFOManager } from './ufos.ts';
 import { AudioManager } from './audio.ts';
 import { processCollisions, checkGroundhogCollision, checkDeerCollision, checkUFOCollision, beamIntersectsGroundhog, beamIntersectsDeer, beamIntersectsUFO } from './collision.ts';
-import { drawExplosion, drawWheelExplosion } from './sprites.ts';
+import { drawExplosion, drawWheelExplosion, drawDroppedWheel } from './sprites.ts';
 
 const DIFFICULTY_INTERVAL = 30; // seconds between difficulty increases
 const SATELLITE_PENALTY_RATE = 30; // dollars per second while satellite in beam
@@ -23,6 +23,7 @@ const RADAR_DAMAGE_RATE = 100; // damage per second to enemies in beam
 const SATELLITE_DESTRUCTION_FINE = 500; // fine for destroying a satellite
 const DEBRIS_GRAVITY = 300; // pixels per second squared
 const DEBRIS_SIZE = 12; // size of debris for collision
+const DROPPED_WHEEL_SIZE = 12; // size of dropped wheel for collision
 
 // Format number as dollars with commas
 function formatDollars(amount: number): string {
@@ -52,6 +53,8 @@ export class Game {
   private satelliteDebris: SatelliteDebris[] = [];
   private nextDebrisId: number = 0;
   private radarCostAccumulator: number = 0;
+  private droppedWheels: DroppedWheel[] = [];
+  private nextWheelId: number = 0;
 
   // Leaderboard state
   private leaderboard: LeaderboardEntry[] = [];
@@ -134,6 +137,7 @@ export class Game {
     this.activeMouseButton = null;
     this.satelliteDebris = [];
     this.radarCostAccumulator = 0;
+    this.droppedWheels = [];
 
     // Reset leaderboard state
     this.playerInitials = '';
@@ -308,11 +312,28 @@ export class Game {
       // Damage UFOs in beam (UFOs can only be killed by radar)
       for (const ufo of this.ufos.getUFOs()) {
         if (beamIntersectsUFO(beam, ufo)) {
-          const destroyed = this.ufos.damageUFO(ufo.id, damage);
-          if (destroyed) {
+          const ufoX = ufo.x;
+          const ufoY = ufo.y;
+          const result = this.ufos.damageUFO(ufo.id, damage);
+          if (result.destroyed) {
             this.state.score += 100; // Bonus for destroying UFO
-            this.addScorePopup(ufo.x, ufo.y, '+$100 UFO!', '#00ff00');
+            this.addScorePopup(ufoX, ufoY, '+$100 UFO!', '#00ff00');
             this.audio.playSatelliteDestroyed();
+
+            // Spawn dropped wheels if UFO had stolen any
+            if (result.droppedWheels > 0) {
+              for (let i = 0; i < result.droppedWheels; i++) {
+                this.droppedWheels.push({
+                  id: this.nextWheelId++,
+                  x: ufoX + (i === 0 ? -10 : 10),
+                  y: ufoY,
+                  vy: 0,
+                  isOnGround: false,
+                });
+              }
+              const dropText = result.droppedWheels === 1 ? '+1 WHEEL DROPPED!' : '+2 WHEELS DROPPED!';
+              this.addScorePopup(ufoX, ufoY - 30, dropText, '#88ff88');
+            }
           }
         }
       }
@@ -446,7 +467,7 @@ export class Game {
       }
     }
 
-    // Process UFO collisions (dive-bomb attack removes 2 wheels)
+    // Process UFO collisions (dive-bomb attack STEALS 2 wheels)
     for (const ufo of this.ufos.getUFOs()) {
       if (ufo.wasHit) continue;
 
@@ -454,13 +475,16 @@ export class Game {
         ufo.wasHit = true;
         this.audio.playSatelliteHit();
 
-        // UFO impact damages 2 wheels
+        // UFO steals 2 wheels (damages them on telescope, carries them away)
+        let wheelsStolen = 0;
         for (let i = 0; i < 2; i++) {
           const { gameOver, wheelIndex } = this.telescope.damageWheel(ufo.x);
 
+          // Spawn wheel explosion at the damaged wheel's position
           const wheelPos = this.telescope.getWheelPosition(wheelIndex);
           if (wheelPos) {
             this.wheelExplosions.push({ x: wheelPos.x, y: wheelPos.y, progress: 0 });
+            wheelsStolen++;
           }
 
           if (gameOver) {
@@ -472,7 +496,12 @@ export class Game {
           }
         }
 
-        this.addScorePopup(ufo.x, ufo.y, 'UFO ATTACK! -2 WHEELS!', '#ff4444');
+        // Mark UFO as carrying stolen wheels
+        if (wheelsStolen > 0) {
+          this.ufos.setUFOStolenWheels(ufo.id, wheelsStolen);
+        }
+
+        this.addScorePopup(ufo.x, ufo.y, `${wheelsStolen} WHEELS STOLEN!`, '#ff4444');
       }
     }
 
@@ -530,6 +559,44 @@ export class Game {
 
     // Remove collected debris
     this.satelliteDebris = this.satelliteDebris.filter(d => !debrisToRemove.includes(d.id));
+
+    // Update dropped wheels (falling and collection)
+    const wheelsToRemove: number[] = [];
+
+    for (const wheel of this.droppedWheels) {
+      if (!wheel.isOnGround) {
+        // Apply gravity
+        wheel.vy += DEBRIS_GRAVITY * deltaTime;
+        wheel.y += wheel.vy * deltaTime;
+
+        // Check if hit ground
+        if (wheel.y >= groundY - DROPPED_WHEEL_SIZE / 2) {
+          wheel.y = groundY - DROPPED_WHEEL_SIZE / 2;
+          wheel.vy = 0;
+          wheel.isOnGround = true;
+        }
+      } else {
+        // Check collision with telescope for pickup
+        const dx = Math.abs(wheel.x - gbtX);
+        if (dx < gbtWidth / 2 + DROPPED_WHEEL_SIZE / 2) {
+          // Collected! Repair a wheel
+          const hasDamagedWheelForPickup = this.telescope.state.wheels.some(w => w.damaged);
+          if (hasDamagedWheelForPickup) {
+            this.telescope.repairWheel();
+            this.addScorePopup(wheel.x, wheel.y - 20, 'WHEEL RECOVERED!', '#00ff00');
+            this.audio.playSourceComplete(100);
+          } else {
+            // All wheels intact, give a bonus
+            this.state.score += 150;
+            this.addScorePopup(wheel.x, wheel.y - 20, '+$150 SPARE WHEEL', '#88ff88');
+          }
+          wheelsToRemove.push(wheel.id);
+        }
+      }
+    }
+
+    // Remove collected wheels
+    this.droppedWheels = this.droppedWheels.filter(w => !wheelsToRemove.includes(w.id));
 
     // Auto-purchase wheel repairs
     const hasDamagedWheel = this.telescope.state.wheels.some(w => w.damaged);
@@ -823,6 +890,11 @@ export class Game {
       this.drawDebris(debris);
     }
 
+    // Draw dropped wheels
+    for (const wheel of this.droppedWheels) {
+      drawDroppedWheel(this.renderer, wheel.x, wheel.y, wheel.isOnGround);
+    }
+
     // Draw telescope (unless exploded)
     if (!this.state.isGameOver || this.explosionProgress < 0.3) {
       this.telescope.draw();
@@ -941,14 +1013,29 @@ export class Game {
         'right'
       );
 
-      // Show debris count if any on ground
+      // Show debris and dropped wheels count if any on ground
       const debrisOnGround = this.satelliteDebris.filter(d => d.isOnGround).length;
+      const wheelsOnGround = this.droppedWheels.filter(w => w.isOnGround).length;
+      let salvageY = padding + 75;
+
       if (debrisOnGround > 0) {
         this.renderer.drawText(
           `DEBRIS: ${debrisOnGround} (roll over to salvage)`,
           this.renderer.width - 20,
-          padding + 75,
+          salvageY,
           '#88aaff',
+          14,
+          'right'
+        );
+        salvageY += 20;
+      }
+
+      if (wheelsOnGround > 0) {
+        this.renderer.drawText(
+          `DROPPED WHEELS: ${wheelsOnGround} (roll over to recover)`,
+          this.renderer.width - 20,
+          salvageY,
+          '#88ff88',
           14,
           'right'
         );
