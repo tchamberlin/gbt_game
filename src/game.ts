@@ -62,6 +62,7 @@ export class Game {
   private submitRank: number | null = null;
   private gameStartTime: number = 0;
   private cursorBlink: number = 0;
+  private showLeaderboardOverlay: boolean = false;
 
   constructor(renderer: Renderer) {
     this.renderer = renderer;
@@ -634,6 +635,12 @@ export class Game {
   }
 
   handleClick(): void {
+    // Close leaderboard overlay on click
+    if (this.showLeaderboardOverlay) {
+      this.showLeaderboardOverlay = false;
+      return;
+    }
+
     if (!this.state.isStarted) {
       this.start();
     } else if (this.state.isPaused) {
@@ -722,6 +729,27 @@ export class Game {
       }
     }
 
+    // L to toggle leaderboard (on start screen, pause, or game over after submit)
+    if (key === 'l' || key === 'L') {
+      // Don't allow during initials input (could be typing "L")
+      if (this.state.isGameOver && this.initialsInputActive && this.submitState === 'idle') {
+        return;
+      }
+      // Allow on start screen, pause screen, or game over
+      if (!this.state.isStarted || this.state.isPaused || this.state.isGameOver) {
+        this.showLeaderboardOverlay = !this.showLeaderboardOverlay;
+        if (this.showLeaderboardOverlay) {
+          this.loadLeaderboard();
+        }
+      }
+    }
+
+    // Escape also closes leaderboard overlay
+    if (key === 'Escape' && this.showLeaderboardOverlay) {
+      this.showLeaderboardOverlay = false;
+      return;
+    }
+
     // WASD movement (only when game is active)
     if (this.state.isStarted && !this.state.isPaused && !this.state.isGameOver) {
       this.keysHeld.add(key.toLowerCase());
@@ -808,6 +836,11 @@ export class Game {
       this.drawPauseScreen();
     } else if (this.state.isGameOver && this.explosionProgress > 0.5) {
       this.drawGameOverScreen();
+    }
+
+    // Draw leaderboard overlay (on top of everything)
+    if (this.showLeaderboardOverlay) {
+      this.drawLeaderboardOverlay();
     }
   }
 
@@ -943,6 +976,16 @@ export class Game {
       );
     }
 
+    // Leaderboard hint
+    this.renderer.drawText(
+      '[L] Leaderboard',
+      centerX,
+      this.renderer.height - 45,
+      '#888888',
+      14,
+      'center'
+    );
+
     // Disclaimer
     this.renderer.drawText(
       'Not affiliated with Green Bank Observatory',
@@ -965,6 +1008,7 @@ export class Game {
     this.renderer.drawText('PAUSED', centerX, centerY - 30, '#ffff00', 48, 'center');
     this.renderer.drawText('Click or press P to resume', centerX, centerY + 30, '#cccccc', 18, 'center');
     this.renderer.drawText('Press R to restart', centerX, centerY + 60, '#888888', 16, 'center');
+    this.renderer.drawText('[L] Leaderboard', centerX, centerY + 90, '#888888', 14, 'center');
   }
 
   private drawGameOverScreen(): void {
@@ -1083,5 +1127,39 @@ export class Game {
     } else {
       this.renderer.drawText('[R] Play Again (skip leaderboard)', centerX, restartY + 20, '#666666', 12, 'center');
     }
+  }
+
+  private drawLeaderboardOverlay(): void {
+    // Darken background
+    this.renderer.ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+    this.renderer.ctx.fillRect(0, 0, this.renderer.width, this.renderer.height);
+
+    const centerX = this.renderer.width / 2;
+    let y = 80;
+
+    // Title
+    this.renderer.drawText('LEADERBOARD', centerX, y, '#ffff00', 48, 'center');
+    y += 50;
+
+    this.renderer.drawText('--- TOP 10 ---', centerX, y, '#888888', 18, 'center');
+    y += 35;
+
+    if (this.leaderboardLoading) {
+      this.renderer.drawText('Loading...', centerX, y, '#666666', 18, 'center');
+    } else if (this.leaderboard.length === 0) {
+      this.renderer.drawText('No scores yet - be the first!', centerX, y, '#666666', 18, 'center');
+    } else {
+      for (const entry of this.leaderboard) {
+        const rankStr = `#${entry.rank}`;
+        const scoreStr = formatDollars(entry.score);
+        const line = `${rankStr.padEnd(4)} ${entry.name}    ${scoreStr}`;
+
+        this.renderer.drawText(line, centerX, y, '#cccccc', 20, 'center');
+        y += 28;
+      }
+    }
+
+    // Close hint
+    this.renderer.drawText('[L] or [ESC] Close', centerX, this.renderer.height - 40, '#888888', 16, 'center');
   }
 }
