@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "bun run server.ts",
-    "build": "bun build src/main.ts --outdir dist --minify",
+    "build": "bun build src/main.ts --outfile dist/bundle.js --minify && cp index.html dist/",
     "bundle": "bun build src/main.ts --outfile bundle.js"
   },
   "devDependencies": {
