@@ -63,6 +63,7 @@ export class Game {
   private gameStartTime: number = 0;
   private cursorBlink: number = 0;
   private showLeaderboardOverlay: boolean = false;
+  private gameOverButtons: { submit: { x: number; y: number; width: number; height: number } | null; skip: { x: number; y: number; width: number; height: number } | null } = { submit: null, skip: null };
 
   constructor(renderer: Renderer) {
     this.renderer = renderer;
@@ -639,11 +640,31 @@ export class Game {
     this.telescope.setTargetPoint({ x, y });
   }
 
-  handleClick(): void {
+  handleClick(x: number, y: number): void {
     // Close leaderboard overlay on click
     if (this.showLeaderboardOverlay) {
       this.showLeaderboardOverlay = false;
       return;
+    }
+
+    // Handle game over screen button clicks
+    if (this.state.isGameOver && this.initialsInputActive && this.submitState === 'idle') {
+      // Check submit button
+      if (this.gameOverButtons.submit && this.playerInitials.length === 3) {
+        const btn = this.gameOverButtons.submit;
+        if (x >= btn.x && x <= btn.x + btn.width && y >= btn.y && y <= btn.y + btn.height) {
+          this.handleScoreSubmit();
+          return;
+        }
+      }
+      // Check skip button
+      if (this.gameOverButtons.skip) {
+        const btn = this.gameOverButtons.skip;
+        if (x >= btn.x && x <= btn.x + btn.width && y >= btn.y && y <= btn.y + btn.height) {
+          this.reset();
+          return;
+        }
+      }
     }
 
     if (!this.state.isStarted) {
@@ -1073,19 +1094,48 @@ export class Game {
             }
           }
         }
-        y += boxHeight + 15;
+        y += boxHeight + 10;
 
-        // Submit hint
-        if (this.playerInitials.length === 3) {
-          this.renderer.drawText('[ENTER] Submit', centerX, y, '#00ff00', 14, 'center');
-        } else {
-          this.renderer.drawText('Type A-Z, [BACKSPACE] to delete', centerX, y, '#888888', 12, 'center');
-        }
-        y += 25;
+        // Typing hint
+        this.renderer.drawText('Type A-Z, [BACKSPACE] to delete', centerX, y, '#888888', 11, 'center');
+        y += 20;
+
+        // Submit and Skip buttons
+        const buttonWidth = 90;
+        const buttonHeight = 32;
+        const buttonSpacing = 20;
+        const buttonsY = y;
+
+        // Submit button (only clickable when 3 initials entered)
+        const submitX = centerX - buttonWidth - buttonSpacing / 2;
+        const submitEnabled = this.playerInitials.length === 3;
+        this.renderer.ctx.fillStyle = submitEnabled ? '#228822' : '#333333';
+        this.renderer.ctx.fillRect(submitX, buttonsY, buttonWidth, buttonHeight);
+        this.renderer.ctx.strokeStyle = submitEnabled ? '#44cc44' : '#555555';
+        this.renderer.ctx.lineWidth = 2;
+        this.renderer.ctx.strokeRect(submitX, buttonsY, buttonWidth, buttonHeight);
+        this.renderer.drawText('SUBMIT', submitX + buttonWidth / 2, buttonsY + buttonHeight / 2 + 5, submitEnabled ? '#ffffff' : '#666666', 14, 'center');
+        this.gameOverButtons.submit = { x: submitX, y: buttonsY, width: buttonWidth, height: buttonHeight };
+
+        // Skip button
+        const skipX = centerX + buttonSpacing / 2;
+        this.renderer.ctx.fillStyle = '#442222';
+        this.renderer.ctx.fillRect(skipX, buttonsY, buttonWidth, buttonHeight);
+        this.renderer.ctx.strokeStyle = '#884444';
+        this.renderer.ctx.lineWidth = 2;
+        this.renderer.ctx.strokeRect(skipX, buttonsY, buttonWidth, buttonHeight);
+        this.renderer.drawText('SKIP', skipX + buttonWidth / 2, buttonsY + buttonHeight / 2 + 5, '#cccccc', 14, 'center');
+        this.gameOverButtons.skip = { x: skipX, y: buttonsY, width: buttonWidth, height: buttonHeight };
+
+        y += buttonHeight + 15;
       } else if (this.submitState === 'submitting') {
+        this.gameOverButtons.submit = null;
+        this.gameOverButtons.skip = null;
         this.renderer.drawText('Submitting...', centerX, y, '#ffff00', 18, 'center');
         y += 35;
       } else if (this.submitState === 'submitted') {
+        this.gameOverButtons.submit = null;
+        this.gameOverButtons.skip = null;
         if (this.submitRank) {
           if (this.submitRank <= 10) {
             this.renderer.drawText(`Ranked #${this.submitRank}!`, centerX, y, '#00ff00', 20, 'center');
@@ -1097,6 +1147,8 @@ export class Game {
         }
         y += 35;
       } else if (this.submitState === 'error') {
+        this.gameOverButtons.submit = null;
+        this.gameOverButtons.skip = null;
         this.renderer.drawText('Submit failed - try again later', centerX, y, '#ff4444', 14, 'center');
         y += 35;
       }
@@ -1128,11 +1180,9 @@ export class Game {
       }
     }
 
-    // Restart hint at bottom
-    const restartY = this.renderer.height - 30;
-    if (this.submitState === 'idle' && this.playerInitials.length > 0) {
-      this.renderer.drawText('[R] Play Again (skip leaderboard)', centerX, restartY, '#666666', 12, 'center');
-    } else {
+    // Restart hint at bottom - only show when not in initials input mode
+    if (this.submitState !== 'idle') {
+      const restartY = this.renderer.height - 30;
       this.renderer.drawText('[R] Play Again', centerX, restartY, '#888888', 14, 'center');
     }
   }

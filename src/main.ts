@@ -30,8 +30,9 @@ function setupInputHandlers(renderer: Renderer): void {
   });
 
   // Click
-  renderer.canvas.addEventListener('click', () => {
-    game.handleClick();
+  renderer.canvas.addEventListener('click', (event: MouseEvent) => {
+    const pos = renderer.getMousePosition(event);
+    game.handleClick(pos.x, pos.y);
   });
 
   // Mouse down (left=observe, right=radar)
