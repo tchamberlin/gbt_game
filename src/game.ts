@@ -6,8 +6,10 @@ import { Telescope } from './telescope.ts';
 import { SourceManager } from './sources.ts';
 import { SatelliteManager } from './satellites.ts';
 import { GroundhogManager } from './groundhogs.ts';
+import { DeerManager } from './deer.ts';
+import { UFOManager } from './ufos.ts';
 import { AudioManager } from './audio.ts';
-import { processCollisions, checkGroundhogCollision, beamIntersectsGroundhog } from './collision.ts';
+import { processCollisions, checkGroundhogCollision, checkDeerCollision, checkUFOCollision, beamIntersectsGroundhog, beamIntersectsDeer, beamIntersectsUFO } from './collision.ts';
 import { drawExplosion, drawWheelExplosion } from './sprites.ts';
 
 const DIFFICULTY_INTERVAL = 30; // seconds between difficulty increases
@@ -33,6 +35,8 @@ export class Game {
   sources: SourceManager;
   satellites: SatelliteManager;
   groundhogs: GroundhogManager;
+  deer: DeerManager;
+  ufos: UFOManager;
   audio: AudioManager;
 
   private lastFRBCount: number = 0;
@@ -54,6 +58,8 @@ export class Game {
     this.sources = new SourceManager(renderer);
     this.satellites = new SatelliteManager(renderer);
     this.groundhogs = new GroundhogManager(renderer);
+    this.deer = new DeerManager(renderer);
+    this.ufos = new UFOManager(renderer);
     this.audio = new AudioManager();
 
     this.state = {
@@ -104,6 +110,8 @@ export class Game {
     this.satellites.reset();
     this.groundhogs.reset();
     this.groundhogs.spawnInitialGroundhogs(3, this.telescope.state.x);  // Start with 3 groundhogs
+    this.deer.reset();
+    this.ufos.reset();
     this.telescope = new Telescope(this.renderer);
     this.scorePopups = [];
     this.explosionProgress = 0;
@@ -156,6 +164,8 @@ export class Game {
     this.sources.update(deltaTime, this.state.difficultyLevel);
     this.satellites.update(deltaTime, this.state.difficultyLevel);
     this.groundhogs.update(deltaTime, this.state.difficultyLevel, this.telescope.state.x);
+    this.deer.update(deltaTime, this.state.difficultyLevel, this.telescope.state.x);
+    this.ufos.update(deltaTime, this.state.difficultyLevel, this.telescope.state.x, this.telescope.state.y);
 
     // Check for new FRBs
     const frbCountAfter = this.sources.getSources().filter((s) => s.type === 'frb').length;
@@ -258,6 +268,28 @@ export class Game {
         }
       }
 
+      // Damage deer in beam
+      for (const deer of this.deer.getDeer()) {
+        if (beamIntersectsDeer(beam, deer)) {
+          const destroyed = this.deer.damageDeer(deer.id, damage);
+          if (destroyed) {
+            this.audio.playGroundhogDestroyed(); // Reuse groundhog sound
+          }
+        }
+      }
+
+      // Damage UFOs in beam (UFOs can only be killed by radar)
+      for (const ufo of this.ufos.getUFOs()) {
+        if (beamIntersectsUFO(beam, ufo)) {
+          const destroyed = this.ufos.damageUFO(ufo.id, damage);
+          if (destroyed) {
+            this.state.score += 100; // Bonus for destroying UFO
+            this.addScorePopup(ufo.x, ufo.y, '+$100 UFO!', '#00ff00');
+            this.audio.playSatelliteDestroyed();
+          }
+        }
+      }
+
       // Radar costs $10/second - accumulate fractional costs
       this.radarCostAccumulator += RADAR_COST_RATE * deltaTime;
       if (this.radarCostAccumulator >= 1) {
@@ -315,7 +347,7 @@ export class Game {
         groundhog.wasHit = true;
         this.state.score += 50;
         this.audio.playSourceComplete(50);
-        this.addScorePopup(groundhog.x, groundhog.y - 30, '+50 STOMP!', '#00ff00');
+        this.addScorePopup(groundhog.x, groundhog.y - 30, '+$50 STOMP!', '#00ff00');
       } else if (collisionResult === 'hit') {
         // Groundhog hits wheels - damage!
         groundhog.wasHit = true;
@@ -338,6 +370,82 @@ export class Game {
           this.audio.stopRadarSound();
           this.saveHighScore();
         }
+      }
+    }
+
+    // Process deer collisions (stomp gives +75 points, hit removes 2 wheels)
+    for (const deer of this.deer.getDeer()) {
+      if (deer.wasHit) continue;
+
+      const collisionResult = checkDeerCollision(
+        deer,
+        gbtBounds,
+        this.telescope.state.groundY,
+        this.telescope.state.y,
+        this.telescope.state.velocityY
+      );
+
+      if (collisionResult === 'stomp') {
+        // Jumping on deer kills it - bigger bonus than groundhog!
+        deer.wasHit = true;
+        this.state.score += 75;
+        this.audio.playSourceComplete(75);
+        this.addScorePopup(deer.x, deer.y - 30, '+$75 STOMP!', '#00ff00');
+      } else if (collisionResult === 'hit') {
+        // Deer hits wheels - damages 2 wheels!
+        deer.wasHit = true;
+        this.audio.playSatelliteHit();
+
+        // Damage two wheels (deer are more dangerous)
+        for (let i = 0; i < 2; i++) {
+          const { gameOver, wheelIndex } = this.telescope.damageWheel(deer.x);
+
+          // Spawn wheel explosion at the damaged wheel's position
+          const wheelPos = this.telescope.getWheelPosition(wheelIndex);
+          if (wheelPos) {
+            this.wheelExplosions.push({ x: wheelPos.x, y: wheelPos.y, progress: 0 });
+          }
+
+          if (gameOver) {
+            this.state.isGameOver = true;
+            this.explosionProgress = 0;
+            this.audio.stopRadarSound();
+            this.saveHighScore();
+            break;
+          }
+        }
+
+        this.addScorePopup(deer.x, deer.y - 30, '2 WHEELS DESTROYED!', '#ff4444');
+      }
+    }
+
+    // Process UFO collisions (dive-bomb attack removes 2 wheels)
+    for (const ufo of this.ufos.getUFOs()) {
+      if (ufo.wasHit) continue;
+
+      if (checkUFOCollision(ufo, gbtBounds, this.telescope.state.groundY)) {
+        ufo.wasHit = true;
+        this.audio.playSatelliteHit();
+
+        // UFO impact damages 2 wheels
+        for (let i = 0; i < 2; i++) {
+          const { gameOver, wheelIndex } = this.telescope.damageWheel(ufo.x);
+
+          const wheelPos = this.telescope.getWheelPosition(wheelIndex);
+          if (wheelPos) {
+            this.wheelExplosions.push({ x: wheelPos.x, y: wheelPos.y, progress: 0 });
+          }
+
+          if (gameOver) {
+            this.state.isGameOver = true;
+            this.explosionProgress = 0;
+            this.audio.stopRadarSound();
+            this.saveHighScore();
+            break;
+          }
+        }
+
+        this.addScorePopup(ufo.x, ufo.y, 'UFO ATTACK! -2 WHEELS!', '#ff4444');
       }
     }
 
@@ -571,6 +679,8 @@ export class Game {
     this.sources.draw();
     this.satellites.draw();
     this.groundhogs.draw();
+    this.deer.draw();
+    this.ufos.draw();
 
     // Draw satellite debris
     for (const debris of this.satelliteDebris) {
@@ -671,7 +781,7 @@ export class Game {
         '[A/D] Move  [W/SPACE] Jump  [LEFT CLICK] Observe  [RIGHT CLICK] Radar  [P] Pause  [R] Restart',
         this.renderer.width / 2,
         this.renderer.height - 20,
-        '#444444',
+        '#aaaaaa',
         14,
         'center'
       );

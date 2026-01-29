@@ -1,7 +1,7 @@
 // Pixel art sprite definitions
 
 import type { Renderer } from './renderer.ts';
-import type { SourceType, WheelState } from './types.ts';
+import type { SourceType, WheelState, UFOState } from './types.ts';
 import { SpriteCache } from './sprite-cache.ts';
 import { animSin } from './lookup-tables.ts';
 
@@ -413,6 +413,88 @@ export function drawGroundhog(
     ctx.beginPath();
     // Arc goes from top, clockwise, showing remaining health
     ctx.arc(x, y - 10, groundhogSize + 5, -Math.PI / 2, -Math.PI / 2 + healthRatio * Math.PI * 2);
+    ctx.stroke();
+  }
+}
+
+// Draw deer using cached animation frames
+export function drawDeer(
+  renderer: Renderer,
+  x: number,
+  y: number,
+  direction: 1 | -1,
+  animPhase: number,
+  healthRatio: number = 1,  // 0-1, where 1 is full health
+  hasBeenDamaged: boolean = false
+): void {
+  const ctx = renderer.ctx;
+  const cache = SpriteCache.getInstance();
+
+  // Get pre-rendered animation frame
+  const sprite = cache.getDeerSprite(direction, animPhase);
+
+  // Draw cached sprite
+  ctx.drawImage(
+    sprite.canvas,
+    Math.floor(x - sprite.originX),
+    Math.floor(y - sprite.originY)
+  );
+
+  // Draw health bar ring (only if damaged, starts full and decreases)
+  if (hasBeenDamaged && healthRatio > 0) {
+    const deerSize = 25;  // approximate deer radius
+    ctx.strokeStyle = '#ff4444';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    // Arc goes from top, clockwise, showing remaining health
+    ctx.arc(x, y - 15, deerSize + 5, -Math.PI / 2, -Math.PI / 2 + healthRatio * Math.PI * 2);
+    ctx.stroke();
+  }
+}
+
+// Draw UFO using cached animation frames
+export function drawUFO(
+  renderer: Renderer,
+  x: number,
+  y: number,
+  state: UFOState,
+  animPhase: number,
+  healthRatio: number = 1,  // 0-1, where 1 is full health
+  hasBeenDamaged: boolean = false
+): void {
+  const ctx = renderer.ctx;
+  const cache = SpriteCache.getInstance();
+
+  // Get pre-rendered animation frame
+  const sprite = cache.getUFOSprite(animPhase * 2); // faster animation
+
+  // Draw cached sprite
+  ctx.drawImage(
+    sprite.canvas,
+    Math.floor(x - sprite.originX),
+    Math.floor(y - sprite.originY)
+  );
+
+  // Draw dive indicator when diving
+  if (state === 'diving') {
+    ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    ctx.moveTo(x, y + 10);
+    ctx.lineTo(x, y + 80);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Draw health bar ring (only if damaged, starts full and decreases)
+  if (hasBeenDamaged && healthRatio > 0) {
+    const ufoSize = 20;  // approximate UFO radius
+    ctx.strokeStyle = '#ff4444';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    // Arc goes from top, clockwise, showing remaining health
+    ctx.arc(x, y, ufoSize + 5, -Math.PI / 2, -Math.PI / 2 + healthRatio * Math.PI * 2);
     ctx.stroke();
   }
 }

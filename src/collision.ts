@@ -1,6 +1,6 @@
 // Beam-object collision detection
 
-import type { BeamState, Source, Satellite, Point, Groundhog } from './types.ts';
+import type { BeamState, Source, Satellite, Point, Groundhog, Deer, UFO } from './types.ts';
 
 // Helper: Check if a point is inside a triangle using barycentric coordinates
 function pointInTriangle(p: Point, v1: Point, v2: Point, v3: Point): boolean {
@@ -100,6 +100,32 @@ export function beamIntersectsGroundhog(beam: BeamState, groundhog: Groundhog): 
   );
 }
 
+// Check if beam triangle overlaps with a deer
+export function beamIntersectsDeer(beam: BeamState, deer: Deer): boolean {
+  const { origin, left, right } = beam.triangle;
+  const deerRadius = 25; // Larger than groundhog
+  return circleIntersectsTriangle(
+    { x: deer.x, y: deer.y },
+    deerRadius,
+    origin,
+    left,
+    right
+  );
+}
+
+// Check if beam triangle overlaps with a UFO
+export function beamIntersectsUFO(beam: BeamState, ufo: UFO): boolean {
+  const { origin, left, right } = beam.triangle;
+  const ufoRadius = 20;
+  return circleIntersectsTriangle(
+    { x: ufo.x, y: ufo.y },
+    ufoRadius,
+    origin,
+    left,
+    right
+  );
+}
+
 // Check groundhog collision with GBT
 // Returns: 'stomp' if GBT lands on groundhog, 'hit' if groundhog hits GBT wheels, 'none' if no collision
 export function checkGroundhogCollision(
@@ -130,6 +156,69 @@ export function checkGroundhogCollision(
   }
 
   return 'none';
+}
+
+// Check deer collision with GBT
+// Returns: 'stomp' if GBT lands on deer, 'hit' if deer hits GBT wheels, 'none' if no collision
+export function checkDeerCollision(
+  deer: Deer,
+  gbtBounds: { x: number; y: number; width: number; height: number },
+  gbtGroundY: number,
+  gbtCurrentY: number,
+  gbtVelocityY: number
+): 'stomp' | 'hit' | 'none' {
+  const deerRadius = 25; // Larger than groundhog
+  const deerLeft = deer.x - deerRadius;
+  const deerRight = deer.x + deerRadius;
+
+  // Check horizontal overlap first
+  const horizontalOverlap = deerRight > gbtBounds.x && deerLeft < gbtBounds.x + gbtBounds.width;
+  if (!horizontalOverlap) {
+    return 'none';
+  }
+
+  // If GBT is in the air and coming down, it's a stomp
+  if (gbtCurrentY < gbtGroundY - 5 && gbtVelocityY >= 0) {
+    return 'stomp';
+  }
+
+  // If GBT is on the ground, deer hits the wheels
+  if (gbtCurrentY >= gbtGroundY - 5) {
+    return 'hit';
+  }
+
+  return 'none';
+}
+
+// Check UFO collision with GBT base (only when diving)
+// Returns true if UFO hits the GBT base area
+export function checkUFOCollision(
+  ufo: UFO,
+  gbtBounds: { x: number; y: number; width: number; height: number },
+  gbtGroundY: number
+): boolean {
+  // Only check collision when diving
+  if (ufo.state !== 'diving') {
+    return false;
+  }
+
+  const ufoRadius = 20;
+
+  // Check if UFO is at ground level and overlapping with GBT
+  const ufoBottom = ufo.y + ufoRadius;
+  const gbtTop = gbtGroundY - gbtBounds.height;
+
+  // Check vertical overlap (UFO must be near the GBT base)
+  if (ufoBottom < gbtTop - 20) {
+    return false;
+  }
+
+  // Check horizontal overlap
+  const ufoLeft = ufo.x - ufoRadius;
+  const ufoRight = ufo.x + ufoRadius;
+  const horizontalOverlap = ufoRight > gbtBounds.x && ufoLeft < gbtBounds.x + gbtBounds.width;
+
+  return horizontalOverlap;
 }
 
 // Process all collisions and return observation results

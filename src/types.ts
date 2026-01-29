@@ -103,6 +103,32 @@ export interface SatelliteDebris {
   isOnGround: boolean;    // true when landed
 }
 
+export interface Deer {
+  id: number;
+  x: number;
+  y: number;
+  speed: number;
+  direction: 1 | -1;          // 1 = moving right, -1 = moving left
+  wasHit: boolean;            // already collided
+  health: number;             // health points (0 = destroyed)
+  hasBeenDamaged: boolean;    // true after first damage (shows health bar)
+}
+
+export type UFOState = 'approaching' | 'diving' | 'retreating' | 'destroyed';
+
+export interface UFO {
+  id: number;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  state: UFOState;
+  targetX: number;            // x position to dive toward
+  health: number;             // health points (0 = destroyed)
+  hasBeenDamaged: boolean;    // true after first damage (shows health bar)
+  wasHit: boolean;            // already collided with GBT this pass
+}
+
 export interface BeamState {
   triangle: Triangle;
 }

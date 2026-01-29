@@ -15,6 +15,8 @@ const PULSAR_FRAMES = 16;
 const FRB_FRAMES = 20;
 const FRB_LIFETIME = 2.0;
 const GROUNDHOG_FRAMES = 8;
+const DEER_FRAMES = 8;
+const UFO_FRAMES = 8;
 
 export class SpriteCache {
   private static instance: SpriteCache;
@@ -29,6 +31,8 @@ export class SpriteCache {
   // Entity sprites
   private satelliteSprite: CachedSprite | null = null;
   private groundhogFrames: Map<string, CachedSprite> = new Map(); // "left_0", "right_3", etc.
+  private deerFrames: Map<string, CachedSprite> = new Map(); // "left_0", "right_3", etc.
+  private ufoFrames: CachedSprite[] = [];
 
   // Star field
   private starFieldCanvas: OffscreenCanvas | null = null;
@@ -51,6 +55,8 @@ export class SpriteCache {
     this.preRenderFRBFrames();
     this.preRenderSatellite();
     this.preRenderGroundhogFrames();
+    this.preRenderDeerFrames();
+    this.preRenderUFOFrames();
     this.preRenderStarField();
   }
 
@@ -306,6 +312,168 @@ export class SpriteCache {
     }
   }
 
+  private preRenderDeerFrames(): void {
+    const size = 35; // Larger than groundhog
+    const padding = 15;
+    const canvasWidth = size + padding * 2;
+    const canvasHeight = size + padding;
+
+    for (const direction of [1, -1] as const) {
+      for (let frame = 0; frame < DEER_FRAMES; frame++) {
+        const { canvas, ctx } = this.createSprite(canvasWidth, canvasHeight);
+        const cx = canvasWidth / 2;
+        const cy = canvasHeight - padding / 2;
+
+        // Animation phase for this frame
+        const animPhase = frame / DEER_FRAMES;
+        const bobOffset = Math.sin(animPhase * Math.PI * 2) * 3;
+        const legOffset = Math.sin(animPhase * Math.PI * 4) * 6;
+
+        ctx.save();
+        ctx.translate(cx, cy + bobOffset);
+
+        if (direction === -1) {
+          ctx.scale(-1, 1);
+        }
+
+        // Body - larger ellipse, tan/brown color
+        ctx.fillStyle = '#D2B48C'; // Tan
+        ctx.beginPath();
+        ctx.ellipse(0, -size / 2.5, size / 1.8, size / 2.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Neck
+        ctx.fillStyle = '#C4A67C';
+        ctx.beginPath();
+        ctx.ellipse(size / 3, -size / 1.5, size / 6, size / 4, 0.3, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Head
+        ctx.fillStyle = '#D2B48C';
+        ctx.beginPath();
+        ctx.ellipse(size / 2.2, -size / 1.2, size / 4, size / 5, 0.2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Ear
+        ctx.fillStyle = '#C4A67C';
+        ctx.beginPath();
+        ctx.ellipse(size / 2.5, -size / 1.0 - 8, 4, 8, 0.3, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Eye
+        ctx.fillStyle = '#000000';
+        ctx.beginPath();
+        ctx.arc(size / 2 + 4, -size / 1.2, 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Nose
+        ctx.fillStyle = '#333333';
+        ctx.beginPath();
+        ctx.arc(size / 1.6, -size / 1.3 + 3, 3, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Legs (4 legs, animated)
+        ctx.fillStyle = '#B8956C';
+        const legWidth = 5;
+        const legHeight = size / 2.5;
+
+        // Front legs
+        ctx.fillRect(Math.floor(size / 4 - legOffset), Math.floor(-size / 5), legWidth, legHeight);
+        ctx.fillRect(Math.floor(size / 4 + legOffset + 6), Math.floor(-size / 5), legWidth, legHeight);
+
+        // Back legs
+        ctx.fillRect(Math.floor(-size / 3 + legOffset), Math.floor(-size / 5), legWidth, legHeight);
+        ctx.fillRect(Math.floor(-size / 3 - legOffset - 6), Math.floor(-size / 5), legWidth, legHeight);
+
+        // Tail (small white/tan)
+        ctx.fillStyle = '#E8DCC8';
+        ctx.beginPath();
+        ctx.ellipse(-size / 1.8, -size / 2.5, 6, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+
+        const key = `${direction === 1 ? 'right' : 'left'}_${frame}`;
+        this.deerFrames.set(key, { canvas, width: canvasWidth, height: canvasHeight, originX: cx, originY: cy });
+      }
+    }
+  }
+
+  private preRenderUFOFrames(): void {
+    const size = 40;
+    const padding = 10;
+    const canvasWidth = size + padding * 2;
+    const canvasHeight = size / 2 + padding * 2;
+
+    for (let frame = 0; frame < UFO_FRAMES; frame++) {
+      const { canvas, ctx } = this.createSprite(canvasWidth, canvasHeight);
+      const cx = canvasWidth / 2;
+      const cy = canvasHeight / 2;
+
+      // Animation phase for pulsing lights
+      const lightPhase = frame / UFO_FRAMES;
+
+      // Draw saucer body (metallic gray)
+      ctx.fillStyle = '#888888';
+      ctx.beginPath();
+      ctx.ellipse(cx, cy + 5, size / 2, size / 6, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Draw rim with gradient
+      const rimGradient = ctx.createLinearGradient(cx - size / 2, cy, cx + size / 2, cy);
+      rimGradient.addColorStop(0, '#666666');
+      rimGradient.addColorStop(0.5, '#aaaaaa');
+      rimGradient.addColorStop(1, '#666666');
+      ctx.fillStyle = rimGradient;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy + 3, size / 2 + 3, size / 8, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Draw dome (glass with alien inside)
+      const domeGradient = ctx.createRadialGradient(cx, cy - 5, 0, cx, cy - 5, size / 4);
+      domeGradient.addColorStop(0, 'rgba(200, 255, 200, 0.8)');
+      domeGradient.addColorStop(0.7, 'rgba(100, 200, 100, 0.5)');
+      domeGradient.addColorStop(1, 'rgba(50, 150, 50, 0.3)');
+      ctx.fillStyle = domeGradient;
+      ctx.beginPath();
+      ctx.arc(cx, cy - 2, size / 4, Math.PI, 0);
+      ctx.fill();
+
+      // Draw alien (green, big eyes)
+      ctx.fillStyle = '#44aa44';
+      ctx.beginPath();
+      ctx.ellipse(cx, cy - 6, 6, 8, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Alien eyes (big, black)
+      ctx.fillStyle = '#000000';
+      ctx.beginPath();
+      ctx.ellipse(cx - 3, cy - 8, 2, 3, -0.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(cx + 3, cy - 8, 2, 3, 0.2, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Draw pulsing lights around rim
+      const numLights = 6;
+      for (let i = 0; i < numLights; i++) {
+        const angle = (i / numLights) * Math.PI * 2 + lightPhase * Math.PI * 2;
+        const lx = cx + Math.cos(angle) * (size / 2 - 2);
+        const ly = cy + 3 + Math.sin(angle) * (size / 10);
+
+        // Alternate light colors
+        const brightness = 0.5 + 0.5 * Math.sin(angle + lightPhase * Math.PI * 4);
+        const color = i % 2 === 0 ? `rgba(255, 0, 0, ${brightness})` : `rgba(0, 255, 255, ${brightness})`;
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(lx, ly, 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      this.ufoFrames.push({ canvas, width: canvasWidth, height: canvasHeight, originX: cx, originY: cy });
+    }
+  }
+
   // ============ Star Field ============
 
   private preRenderStarField(): void {
@@ -361,6 +529,17 @@ export class SpriteCache {
 
   getStarField(): OffscreenCanvas {
     return this.starFieldCanvas!;
+  }
+
+  getDeerSprite(direction: 1 | -1, animPhase: number): CachedSprite {
+    const frameIndex = Math.floor((animPhase * DEER_FRAMES) % DEER_FRAMES);
+    const key = `${direction === 1 ? 'right' : 'left'}_${frameIndex}`;
+    return this.deerFrames.get(key)!;
+  }
+
+  getUFOSprite(animPhase: number): CachedSprite {
+    const frameIndex = Math.floor((animPhase * UFO_FRAMES) % UFO_FRAMES);
+    return this.ufoFrames[frameIndex]!;
   }
 
   // Cache sky gradient for a specific context
