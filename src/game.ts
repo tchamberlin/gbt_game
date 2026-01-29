@@ -42,7 +42,8 @@ export class Game {
   private explosionProgress: number = 0;
   private keysHeld: Set<string> = new Set();
   private wheelExplosions: { x: number; y: number; progress: number }[] = [];
-  private activeMouseButton: number | null = null;  // Track first-held mouse button (0=left, 2=right)
+  private heldMouseButtons: Set<number> = new Set();  // Track all held mouse buttons
+  private activeMouseButton: number | null = null;  // The button currently controlling state
   private satelliteDebris: SatelliteDebris[] = [];
   private nextDebrisId: number = 0;
   private radarCostAccumulator: number = 0;
@@ -107,6 +108,7 @@ export class Game {
     this.explosionProgress = 0;
     this.keysHeld.clear();
     this.wheelExplosions = [];
+    this.heldMouseButtons.clear();
     this.activeMouseButton = null;
     this.satelliteDebris = [];
     this.radarCostAccumulator = 0;
@@ -478,6 +480,8 @@ export class Game {
   handleMouseDown(button: number): void {
     if (!this.state.isStarted || this.state.isPaused || this.state.isGameOver) return;
 
+    this.heldMouseButtons.add(button);
+
     // First-held-wins: only the first button pressed takes effect
     if (this.activeMouseButton !== null) return;
 
@@ -493,17 +497,29 @@ export class Game {
   }
 
   handleMouseUp(button: number): void {
-    // Only respond to the button that was pressed first
+    this.heldMouseButtons.delete(button);
+
+    // Only respond to the button that was active
     if (this.activeMouseButton !== button) return;
 
-    this.activeMouseButton = null;
-
+    // Deactivate current action
     if (button === 0) {
-      // Left click released: blank beam again
       this.state.isBeamBlanked = true;
     } else if (button === 2) {
-      // Right click released: deactivate radar
       this.state.isRadarActive = false;
+    }
+
+    // Check if other button is still held and transition to it
+    const otherButton = button === 0 ? 2 : 0;
+    if (this.heldMouseButtons.has(otherButton)) {
+      this.activeMouseButton = otherButton;
+      if (otherButton === 0) {
+        this.state.isBeamBlanked = false;
+      } else {
+        this.state.isRadarActive = true;
+      }
+    } else {
+      this.activeMouseButton = null;
     }
   }
 

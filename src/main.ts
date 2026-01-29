@@ -36,6 +36,7 @@ function setupInputHandlers(renderer: Renderer): void {
 
   // Mouse down (left=observe, right=radar)
   renderer.canvas.addEventListener('mousedown', (event: MouseEvent) => {
+    event.preventDefault();
     game.handleMouseDown(event.button);
   });
 
@@ -56,6 +57,11 @@ function setupInputHandlers(renderer: Renderer): void {
 
   // Prevent context menu on right click
   renderer.canvas.addEventListener('contextmenu', (event: Event) => {
+    event.preventDefault();
+  });
+
+  // Prevent drag behavior
+  renderer.canvas.addEventListener('dragstart', (event: Event) => {
     event.preventDefault();
   });
 }
