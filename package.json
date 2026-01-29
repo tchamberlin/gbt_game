@@ -5,10 +5,10 @@
   "private": true,
   "scripts": {
     "dev": "bun run server.ts",
-    "dev:cf": "bunx wrangler pages dev ./dist --kv=LEADERBOARD",
+    "dev:cf": "bunx wrangler dev",
     "build": "rm -rf dist && mkdir -p dist/docs && bun build src/main.ts --outfile dist/bundle.js --minify && cp index.html gbt.png gbt.svg dist/ && cp -r claude_code_log/* dist/docs/",
     "bundle": "bun build src/main.ts --outfile bundle.js",
-    "deploy": "bun run build && bunx wrangler pages deploy ./dist"
+    "deploy": "bun run build && bunx wrangler deploy"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260129.0",
