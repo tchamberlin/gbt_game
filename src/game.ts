@@ -1017,31 +1017,33 @@ export class Game {
     this.renderer.ctx.fillRect(0, 0, this.renderer.width, this.renderer.height);
 
     const centerX = this.renderer.width / 2;
-    let y = 60;
+    let y = 50;
 
     // Title
-    this.renderer.drawText('GAME OVER', centerX, y, '#ff4444', 48, 'center');
-    y += 35;
+    this.renderer.drawText('GAME OVER', centerX, y, '#ff4444', 42, 'center');
+    y += 30;
 
     // Cause of death
-    this.renderer.drawText('All wheels destroyed!', centerX, y, '#ff8888', 18, 'center');
-    y += 35;
+    this.renderer.drawText('All wheels destroyed!', centerX, y, '#ff8888', 16, 'center');
+    y += 30;
 
     // Final score
-    this.renderer.drawText(`Final: ${formatDollars(this.state.score)}`, centerX, y, '#ffffff', 32, 'center');
-    y += 45;
+    this.renderer.drawText(`Final: ${formatDollars(this.state.score)}`, centerX, y, '#ffffff', 28, 'center');
+    y += 40;
 
     // Initials input section
     if (this.initialsInputActive) {
       if (this.submitState === 'idle') {
-        this.renderer.drawText('ENTER INITIALS:', centerX, y, '#ffff00', 18, 'center');
-        y += 30;
+        this.renderer.drawText('ENTER INITIALS:', centerX, y, '#ffff00', 16, 'center');
+        y += 25;
 
         // Draw initials boxes
-        const boxWidth = 40;
-        const boxSpacing = 10;
+        const boxWidth = 36;
+        const boxHeight = 44;
+        const boxSpacing = 8;
         const totalWidth = 3 * boxWidth + 2 * boxSpacing;
         const startX = centerX - totalWidth / 2;
+        const boxTop = y;
 
         for (let i = 0; i < 3; i++) {
           const boxX = startX + i * (boxWidth + boxSpacing);
@@ -1049,54 +1051,55 @@ export class Game {
 
           // Box background
           this.renderer.ctx.fillStyle = '#222244';
-          this.renderer.ctx.fillRect(boxX, y - 25, boxWidth, 35);
+          this.renderer.ctx.fillRect(boxX, boxTop, boxWidth, boxHeight);
           this.renderer.ctx.strokeStyle = i === this.playerInitials.length ? '#ffff00' : '#444488';
           this.renderer.ctx.lineWidth = 2;
-          this.renderer.ctx.strokeRect(boxX, y - 25, boxWidth, 35);
+          this.renderer.ctx.strokeRect(boxX, boxTop, boxWidth, boxHeight);
 
-          // Letter
+          // Letter (vertically centered in box)
+          const textY = boxTop + boxHeight / 2 + 10; // +10 to account for text baseline
           if (char) {
-            this.renderer.drawText(char, boxX + boxWidth / 2, y, '#ffffff', 28, 'center');
+            this.renderer.drawText(char, boxX + boxWidth / 2, textY, '#ffffff', 28, 'center');
           } else if (i === this.playerInitials.length) {
             // Blinking cursor
             const showCursor = Math.floor(this.cursorBlink * 3) % 2 === 0;
             if (showCursor) {
-              this.renderer.drawText('_', boxX + boxWidth / 2, y, '#ffff00', 28, 'center');
+              this.renderer.drawText('_', boxX + boxWidth / 2, textY, '#ffff00', 28, 'center');
             }
           }
         }
-        y += 25;
+        y += boxHeight + 15;
 
         // Submit hint
         if (this.playerInitials.length === 3) {
-          this.renderer.drawText('[ENTER] Submit', centerX, y, '#00ff00', 16, 'center');
+          this.renderer.drawText('[ENTER] Submit', centerX, y, '#00ff00', 14, 'center');
         } else {
-          this.renderer.drawText('Type A-Z, [BACKSPACE] to delete', centerX, y, '#888888', 14, 'center');
+          this.renderer.drawText('Type A-Z, [BACKSPACE] to delete', centerX, y, '#888888', 12, 'center');
         }
-        y += 35;
+        y += 25;
       } else if (this.submitState === 'submitting') {
-        this.renderer.drawText('Submitting...', centerX, y, '#ffff00', 20, 'center');
-        y += 55;
+        this.renderer.drawText('Submitting...', centerX, y, '#ffff00', 18, 'center');
+        y += 35;
       } else if (this.submitState === 'submitted') {
         if (this.submitRank && this.submitRank <= 10) {
-          this.renderer.drawText(`Ranked #${this.submitRank}!`, centerX, y, '#00ff00', 24, 'center');
+          this.renderer.drawText(`Ranked #${this.submitRank}!`, centerX, y, '#00ff00', 20, 'center');
         } else {
-          this.renderer.drawText('Score submitted!', centerX, y, '#00ff00', 20, 'center');
+          this.renderer.drawText('Score submitted!', centerX, y, '#00ff00', 18, 'center');
         }
-        y += 55;
+        y += 35;
       } else if (this.submitState === 'error') {
-        this.renderer.drawText('Submit failed - try again later', centerX, y, '#ff4444', 16, 'center');
-        y += 55;
+        this.renderer.drawText('Submit failed - try again later', centerX, y, '#ff4444', 14, 'center');
+        y += 35;
       }
 
       // Leaderboard section
-      this.renderer.drawText('--- TOP 10 ---', centerX, y, '#888888', 16, 'center');
-      y += 25;
+      this.renderer.drawText('--- TOP 10 ---', centerX, y, '#888888', 14, 'center');
+      y += 22;
 
       if (this.leaderboardLoading) {
-        this.renderer.drawText('Loading...', centerX, y, '#666666', 14, 'center');
+        this.renderer.drawText('Loading...', centerX, y, '#666666', 12, 'center');
       } else if (this.leaderboard.length === 0) {
-        this.renderer.drawText('No scores yet - be the first!', centerX, y, '#666666', 14, 'center');
+        this.renderer.drawText('No scores yet - be the first!', centerX, y, '#666666', 12, 'center');
       } else {
         for (const entry of this.leaderboard) {
           const isPlayer = this.submitState === 'submitted' &&
@@ -1110,22 +1113,18 @@ export class Game {
           const scoreStr = formatDollars(entry.score);
           const line = `${rankStr.padEnd(4)} ${entry.name}    ${scoreStr}${marker}`;
 
-          this.renderer.drawText(line, centerX, y, color, 14, 'center');
-          y += 20;
+          this.renderer.drawText(line, centerX, y, color, 13, 'center');
+          y += 18;
         }
       }
     }
 
     // Restart hint at bottom
-    const restartY = this.renderer.height - 40;
-    const hint = this.submitState === 'idle' && this.playerInitials.length > 0
-      ? 'Finish entering initials or'
-      : '[R] Play Again';
-    this.renderer.drawText(hint, centerX, restartY, '#888888', 16, 'center');
-    if (this.submitState !== 'idle' || this.playerInitials.length === 0) {
-      // Nothing extra needed
+    const restartY = this.renderer.height - 30;
+    if (this.submitState === 'idle' && this.playerInitials.length > 0) {
+      this.renderer.drawText('[R] Play Again (skip leaderboard)', centerX, restartY, '#666666', 12, 'center');
     } else {
-      this.renderer.drawText('[R] Play Again (skip leaderboard)', centerX, restartY + 20, '#666666', 12, 'center');
+      this.renderer.drawText('[R] Play Again', centerX, restartY, '#888888', 14, 'center');
     }
   }
 
@@ -1135,31 +1134,35 @@ export class Game {
     this.renderer.ctx.fillRect(0, 0, this.renderer.width, this.renderer.height);
 
     const centerX = this.renderer.width / 2;
-    let y = 80;
+    const centerY = this.renderer.height / 2;
 
     // Title
-    this.renderer.drawText('LEADERBOARD', centerX, y, '#ffff00', 48, 'center');
-    y += 50;
+    this.renderer.drawText('LEADERBOARD', centerX, centerY - 180, '#ffff00', 36, 'center');
 
-    this.renderer.drawText('--- TOP 10 ---', centerX, y, '#888888', 18, 'center');
-    y += 35;
+    this.renderer.drawText('--- TOP 10 ---', centerX, centerY - 130, '#888888', 16, 'center');
 
     if (this.leaderboardLoading) {
-      this.renderer.drawText('Loading...', centerX, y, '#666666', 18, 'center');
+      this.renderer.drawText('Loading...', centerX, centerY, '#666666', 18, 'center');
     } else if (this.leaderboard.length === 0) {
-      this.renderer.drawText('No scores yet - be the first!', centerX, y, '#666666', 18, 'center');
+      this.renderer.drawText('No scores yet - be the first!', centerX, centerY, '#666666', 18, 'center');
     } else {
-      for (const entry of this.leaderboard) {
-        const rankStr = `#${entry.rank}`;
-        const scoreStr = formatDollars(entry.score);
-        const line = `${rankStr.padEnd(4)} ${entry.name}    ${scoreStr}`;
+      // Draw entries with proper column alignment
+      const startY = centerY - 100;
+      const lineHeight = 26;
 
-        this.renderer.drawText(line, centerX, y, '#cccccc', 20, 'center');
-        y += 28;
+      for (const entry of this.leaderboard) {
+        const y = startY + (entry.rank - 1) * lineHeight;
+        const rankStr = entry.rank <= 9 ? ` #${entry.rank}` : `#${entry.rank}`;
+        const scoreStr = formatDollars(entry.score).padStart(10);
+
+        // Draw rank, name, score as separate elements for alignment
+        this.renderer.drawText(rankStr, centerX - 80, y, '#888888', 18, 'left');
+        this.renderer.drawText(entry.name, centerX - 20, y, '#ffffff', 18, 'center');
+        this.renderer.drawText(scoreStr, centerX + 100, y, '#00ff00', 18, 'right');
       }
     }
 
     // Close hint
-    this.renderer.drawText('[L] or [ESC] Close', centerX, this.renderer.height - 40, '#888888', 16, 'center');
+    this.renderer.drawText('[L] or [ESC] Close', centerX, this.renderer.height - 40, '#888888', 14, 'center');
   }
 }
