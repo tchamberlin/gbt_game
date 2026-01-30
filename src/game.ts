@@ -17,7 +17,6 @@ const DIFFICULTY_INTERVAL = 30; // seconds between difficulty increases
 const SATELLITE_PENALTY_RATE = 30; // dollars per second while satellite in beam
 const HIGH_SCORE_KEY = 'gbt_observations_high_dollars';
 const OBSERVATION_BONUS_RATE = 10; // base dollars per second while observing source
-const WHEEL_COST = 10_000; // cost to repair a wheel
 const RADAR_COST_RATE = 10; // dollars per second while radar is active
 const RADAR_DAMAGE_RATE = 100; // damage per second to enemies in beam
 const SATELLITE_DESTRUCTION_FINE = 500; // fine for destroying a satellite
@@ -598,21 +597,6 @@ export class Game {
     // Remove collected wheels
     this.droppedWheels = this.droppedWheels.filter(w => !wheelsToRemove.includes(w.id));
 
-    // Auto-purchase wheel repairs
-    const hasDamagedWheel = this.telescope.state.wheels.some(w => w.damaged);
-    if (hasDamagedWheel && this.state.score >= WHEEL_COST) {
-      if (this.telescope.repairWheel()) {
-        this.state.score -= WHEEL_COST;
-        this.addScorePopup(
-          this.renderer.width / 2,
-          150,
-          `-${formatDollars(WHEEL_COST)} WHEEL REPAIRED!`,
-          '#00ff88'
-        );
-        this.audio.playSourceComplete(100);
-      }
-    }
-
     // Save high score periodically
     this.saveHighScore();
   }
@@ -1005,7 +989,7 @@ export class Game {
       const activeWheels = this.telescope.state.wheels.filter(w => !w.damaged).length;
       const wheelColor = activeWheels <= 2 ? '#ff4444' : activeWheels <= 4 ? '#ffaa00' : '#888888';
       this.renderer.drawText(
-        `WHEELS: ${activeWheels}/8 (${formatDollars(WHEEL_COST)} each)`,
+        `WHEELS: ${activeWheels}/8`,
         this.renderer.width - 20,
         padding + 50,
         wheelColor,
@@ -1061,7 +1045,7 @@ export class Game {
       'LEFT CLICK to observe sources (beam blanked by default)',
       'RIGHT CLICK for radar to destroy enemies ($10/s)',
       'Avoid satellites - they reset your observations!',
-      `Wheels auto-repair for ${formatDollars(WHEEL_COST)} when damaged`,
+      'Salvage debris or recover wheels by rolling over them',
       '',
       'Click to start',
     ];
