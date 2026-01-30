@@ -108,7 +108,11 @@ export default {
 
         await env.LEADERBOARD.put('scores', JSON.stringify(topEntries));
 
-        return new Response(JSON.stringify({ success: true, rank: newRank >= 0 ? newRank + 1 : null }), {
+        return new Response(JSON.stringify({
+          success: true,
+          rank: newRank >= 0 ? newRank + 1 : null,
+          leaderboard: topEntries,
+        }), {
           headers: { 'Content-Type': 'application/json' },
         });
       } catch (error) {
