@@ -73,6 +73,7 @@ export class Game {
   private showLeaderboardOverlay: boolean = false;
   private gameOverButtons: { submit: { x: number; y: number; width: number; height: number } | null; skip: { x: number; y: number; width: number; height: number } | null } = { submit: null, skip: null };
   private difficultyButtons: { normal: { x: number; y: number; width: number; height: number } | null; hard: { x: number; y: number; width: number; height: number } | null } = { normal: null, hard: null };
+  private hoveredDifficulty: 'normal' | 'hard' | null = null;
 
   constructor(renderer: Renderer) {
     this.renderer = renderer;
@@ -738,6 +739,24 @@ export class Game {
   }
 
   handleMouseMove(x: number, y: number): void {
+    // Check hover on difficulty buttons when on start screen
+    if (!this.state.isStarted && this.state.welcomeStage === 1) {
+      this.hoveredDifficulty = null;
+      if (this.difficultyButtons.normal) {
+        const btn = this.difficultyButtons.normal;
+        if (x >= btn.x && x <= btn.x + btn.width && y >= btn.y && y <= btn.y + btn.height) {
+          this.hoveredDifficulty = 'normal';
+        }
+      }
+      if (this.difficultyButtons.hard) {
+        const btn = this.difficultyButtons.hard;
+        if (x >= btn.x && x <= btn.x + btn.width && y >= btn.y && y <= btn.y + btn.height) {
+          this.hoveredDifficulty = 'hard';
+        }
+      }
+      return;
+    }
+
     if (!this.state.isStarted || this.state.isPaused) return;
     this.telescope.setTargetPoint({ x, y });
   }
@@ -1205,21 +1224,29 @@ export class Game {
       const hardButtonX = col3X - buttonWidth / 2;
       const buttonsY = 60;
 
-      // Pulse effect for buttons
+      // Pulse effect for buttons (disabled when hovered)
       const pulse = (Math.sin(Date.now() / 300) + 1) / 2; // 0 to 1
-      const normalPulseAlpha = 0.5 + pulse * 0.5; // 0.5 to 1.0
 
-      // Normal button
-      this.renderer.ctx.fillStyle = '#223322';
-      this.renderer.ctx.fillRect(normalButtonX, buttonsY, buttonWidth, buttonHeight);
+      // Normal button - grow and stop pulsing on hover
+      const normalHovered = this.hoveredDifficulty === 'normal';
+      const normalGrow = normalHovered ? 6 : 0;
+      const normalPulseAlpha = normalHovered ? 1.0 : 0.5 + pulse * 0.5;
+      const normalLineWidth = normalHovered ? 3 : 2 + pulse;
+      const normalBtnX = normalButtonX - normalGrow / 2;
+      const normalBtnY = buttonsY - normalGrow / 2;
+      const normalBtnW = buttonWidth + normalGrow;
+      const normalBtnH = buttonHeight + normalGrow;
+
+      this.renderer.ctx.fillStyle = normalHovered ? '#2a442a' : '#223322';
+      this.renderer.ctx.fillRect(normalBtnX, normalBtnY, normalBtnW, normalBtnH);
       this.renderer.ctx.strokeStyle = `rgba(68, 204, 68, ${normalPulseAlpha})`;
-      this.renderer.ctx.lineWidth = 2 + pulse;
-      this.renderer.ctx.strokeRect(normalButtonX, buttonsY, buttonWidth, buttonHeight);
+      this.renderer.ctx.lineWidth = normalLineWidth;
+      this.renderer.ctx.strokeRect(normalBtnX, normalBtnY, normalBtnW, normalBtnH);
       const normalBtnCenterY = buttonsY + buttonHeight / 2;
-      this.renderer.drawText('NORMAL', col2X, normalBtnCenterY - 6, '#00ff00', 20, 'center');
+      this.renderer.drawText('NORMAL', col2X, normalBtnCenterY - 6, '#00ff00', normalHovered ? 22 : 20, 'center');
       const normalBestText = normalHighScore > 0 ? formatDollars(normalHighScore) : 'N/A';
-      this.renderer.drawText(normalBestText, col2X, normalBtnCenterY + 14, '#ffff00', 13, 'center');
-      this.difficultyButtons.normal = { x: normalButtonX, y: buttonsY, width: buttonWidth, height: buttonHeight };
+      this.renderer.drawText(normalBestText, col2X, normalBtnCenterY + 14, '#ffff00', normalHovered ? 14 : 13, 'center');
+      this.difficultyButtons.normal = { x: normalBtnX, y: normalBtnY, width: normalBtnW, height: normalBtnH };
 
       // Normal leaderboard
       const leaderboardStartY = buttonsY + buttonHeight + 20;
@@ -1240,18 +1267,26 @@ export class Game {
         }
       }
 
-      // Hard button
-      const hardPulseAlpha = 0.5 + pulse * 0.5;
-      this.renderer.ctx.fillStyle = '#332222';
-      this.renderer.ctx.fillRect(hardButtonX, buttonsY, buttonWidth, buttonHeight);
+      // Hard button - grow and stop pulsing on hover
+      const hardHovered = this.hoveredDifficulty === 'hard';
+      const hardGrow = hardHovered ? 6 : 0;
+      const hardPulseAlpha = hardHovered ? 1.0 : 0.5 + pulse * 0.5;
+      const hardLineWidth = hardHovered ? 3 : 2 + pulse;
+      const hardBtnX = hardButtonX - hardGrow / 2;
+      const hardBtnY = buttonsY - hardGrow / 2;
+      const hardBtnW = buttonWidth + hardGrow;
+      const hardBtnH = buttonHeight + hardGrow;
+
+      this.renderer.ctx.fillStyle = hardHovered ? '#442a2a' : '#332222';
+      this.renderer.ctx.fillRect(hardBtnX, hardBtnY, hardBtnW, hardBtnH);
       this.renderer.ctx.strokeStyle = `rgba(204, 68, 68, ${hardPulseAlpha})`;
-      this.renderer.ctx.lineWidth = 2 + pulse;
-      this.renderer.ctx.strokeRect(hardButtonX, buttonsY, buttonWidth, buttonHeight);
+      this.renderer.ctx.lineWidth = hardLineWidth;
+      this.renderer.ctx.strokeRect(hardBtnX, hardBtnY, hardBtnW, hardBtnH);
       const hardBtnCenterY = buttonsY + buttonHeight / 2;
-      this.renderer.drawText('HARD', col3X, hardBtnCenterY - 6, '#ff4444', 20, 'center');
+      this.renderer.drawText('HARD', col3X, hardBtnCenterY - 6, '#ff4444', hardHovered ? 22 : 20, 'center');
       const hardBestText = hardHighScore > 0 ? formatDollars(hardHighScore) : 'N/A';
-      this.renderer.drawText(hardBestText, col3X, hardBtnCenterY + 14, '#ffff00', 13, 'center');
-      this.difficultyButtons.hard = { x: hardButtonX, y: buttonsY, width: buttonWidth, height: buttonHeight };
+      this.renderer.drawText(hardBestText, col3X, hardBtnCenterY + 14, '#ffff00', hardHovered ? 14 : 13, 'center');
+      this.difficultyButtons.hard = { x: hardBtnX, y: hardBtnY, width: hardBtnW, height: hardBtnH };
 
       // Hard leaderboard
       if (this.leaderboardLoading) {
