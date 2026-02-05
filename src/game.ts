@@ -89,6 +89,7 @@ export class Game {
       isRadarActive: false,
       satellitesDestroyed: 0,
       radarDisabledTimer: 0,
+      welcomeStage: 0,
     };
   }
 
@@ -108,11 +109,15 @@ export class Game {
     this.state.isStarted = true;
     this.state.isPaused = false;
     this.audio.enable();
+    this.audio.fadeOutMenuMusic(1.0);
     this.gameStartTime = Date.now();
     this.reset();
   }
 
   reset(): void {
+    // Fade out menu music when restarting from game over
+    this.audio.fadeOutMenuMusic(1.0);
+
     this.state.score = 0;
     this.state.elapsedTime = 0;
     this.state.difficultyLevel = 1;
@@ -415,6 +420,7 @@ export class Game {
           this.state.isGameOver = true;
           this.explosionProgress = 0;
           this.audio.stopRadarSound();
+          this.audio.startMenuMusic();
           this.saveHighScore();
         }
       }
@@ -457,6 +463,7 @@ export class Game {
             this.state.isGameOver = true;
             this.explosionProgress = 0;
             this.audio.stopRadarSound();
+            this.audio.startMenuMusic();
             this.saveHighScore();
             break;
           }
@@ -490,6 +497,7 @@ export class Game {
             this.state.isGameOver = true;
             this.explosionProgress = 0;
             this.audio.stopRadarSound();
+            this.audio.startMenuMusic();
             this.saveHighScore();
             break;
           }
@@ -719,7 +727,16 @@ export class Game {
     }
 
     if (!this.state.isStarted) {
-      this.start();
+      if (this.state.welcomeStage === 0) {
+        // First click: enable audio, start music, show instructions
+        this.audio.enable();
+        this.audio.startMenuMusic();
+        this.state.welcomeStage = 1;
+        this.loadLeaderboard(); // Load leaderboard for instructions screen
+      } else {
+        // Second click: start the game
+        this.start();
+      }
     } else if (this.state.isPaused) {
       this.resume();
     }
@@ -1035,63 +1052,131 @@ export class Game {
     const centerX = this.renderer.width / 2;
     const centerY = this.renderer.height / 2;
 
-    // Title
-    this.renderer.drawText('GBT OBSERVING', centerX, centerY - 130, '#00ff00', 48, 'center');
+    if (this.state.welcomeStage === 0) {
+      // Stage 0: Title screen
+      this.renderer.drawText('GBT OBSERVING', centerX, centerY - 80, '#00ff00', 56, 'center');
 
-    // Instructions
-    const instructions = [
-      'Move mouse to aim the telescope beam',
-      'A/D to move left/right, W/SPACE to jump',
-      'LEFT CLICK to observe sources (beam blanked by default)',
-      'RIGHT CLICK for radar to destroy enemies ($10/s)',
-      'Avoid satellites - they reset your observations!',
-      'Salvage debris or recover wheels by rolling over them',
-      '',
-      'Click to start',
-    ];
-
-    for (let i = 0; i < instructions.length; i++) {
       this.renderer.drawText(
-        instructions[i]!,
+        'Guide the Green Bank Telescope to observe cosmic sources',
         centerX,
-        centerY - 60 + i * 25,
+        centerY,
         '#cccccc',
-        18,
-        'center'
-      );
-    }
-
-    // High score
-    if (this.state.highScore > 0) {
-      this.renderer.drawText(
-        `High Score: ${formatDollars(this.state.highScore)}`,
-        centerX,
-        centerY + 160,
-        '#ffff00',
         20,
         'center'
       );
+      this.renderer.drawText(
+        'while avoiding satellites, groundhogs, deer, and UFOs!',
+        centerX,
+        centerY + 30,
+        '#cccccc',
+        20,
+        'center'
+      );
+
+      // High score
+      if (this.state.highScore > 0) {
+        this.renderer.drawText(
+          `Your Best: ${formatDollars(this.state.highScore)}`,
+          centerX,
+          centerY + 90,
+          '#ffff00',
+          22,
+          'center'
+        );
+      }
+
+      this.renderer.drawText('Click to continue', centerX, centerY + 150, '#ffffff', 24, 'center');
+
+      // Disclaimer
+      this.renderer.drawText(
+        'Not affiliated with Green Bank Observatory',
+        centerX,
+        this.renderer.height - 20,
+        '#666666',
+        12,
+        'center'
+      );
+    } else {
+      // Stage 1: Instructions + Leaderboard
+      const leftX = this.renderer.width * 0.3;
+      const rightX = this.renderer.width * 0.72;
+
+      // Instructions on left
+      this.renderer.drawText('HOW TO PLAY', leftX, 80, '#00ff00', 28, 'center');
+
+      const instructions = [
+        'Move mouse to aim the telescope beam',
+        '',
+        'A/D to move left/right',
+        'W/SPACE to jump',
+        '',
+        'LEFT CLICK to observe sources',
+        '(beam is blanked by default)',
+        '',
+        'RIGHT CLICK for radar beam',
+        'Destroys enemies ($10/s cost)',
+        '',
+        'Avoid satellites - they reset observations!',
+        '',
+        'Roll over debris to salvage wheels',
+        'Recover dropped wheels from UFOs',
+      ];
+
+      for (let i = 0; i < instructions.length; i++) {
+        this.renderer.drawText(
+          instructions[i]!,
+          leftX,
+          120 + i * 22,
+          '#cccccc',
+          16,
+          'center'
+        );
+      }
+
+      // Leaderboard on right
+      this.renderer.drawText('LEADERBOARD', rightX, 80, '#ffff00', 28, 'center');
+
+      if (this.leaderboardLoading) {
+        this.renderer.drawText('Loading...', rightX, 140, '#888888', 16, 'center');
+      } else if (this.leaderboard.length === 0) {
+        this.renderer.drawText('No scores yet - be the first!', rightX, 140, '#888888', 16, 'center');
+      } else {
+        for (let i = 0; i < this.leaderboard.length; i++) {
+          const entry = this.leaderboard[i]!;
+          const y = 130 + i * 28;
+          const rankColor = i === 0 ? '#ffd700' : i === 1 ? '#c0c0c0' : i === 2 ? '#cd7f32' : '#888888';
+
+          this.renderer.drawText(`${entry.rank}.`, rightX - 100, y, rankColor, 18, 'right');
+          this.renderer.drawText(entry.name, rightX - 70, y, '#ffffff', 18, 'left');
+          this.renderer.drawText(formatDollars(entry.score), rightX + 100, y, '#00ff00', 18, 'right');
+        }
+      }
+
+      // High score below leaderboard
+      if (this.state.highScore > 0) {
+        this.renderer.drawText(
+          `Your Best: ${formatDollars(this.state.highScore)}`,
+          rightX,
+          430,
+          '#ffff00',
+          18,
+          'center'
+        );
+      }
+
+      // Click to start
+      this.renderer.drawText('Click to start', centerX, this.renderer.height - 50, '#ffffff', 28, 'center');
+
+      // Disclaimer
+      this.renderer.drawText(
+        'Not affiliated with Green Bank Observatory',
+        centerX,
+        this.renderer.height - 20,
+        '#666666',
+        12,
+        'center'
+      );
     }
-
-    // Leaderboard hint
-    this.renderer.drawText(
-      '[L] Leaderboard',
-      centerX,
-      this.renderer.height - 45,
-      '#888888',
-      14,
-      'center'
-    );
-
-    // Disclaimer
-    this.renderer.drawText(
-      'Not affiliated with Green Bank Observatory',
-      centerX,
-      this.renderer.height - 20,
-      '#666666',
-      12,
-      'center'
-    );
   }
 
   private drawPauseScreen(): void {

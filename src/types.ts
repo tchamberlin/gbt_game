@@ -23,6 +23,7 @@ export interface GameState {
   isRadarActive: boolean;
   satellitesDestroyed: number;
   radarDisabledTimer: number;
+  welcomeStage: number; // 0 = title screen, 1 = instructions screen
 }
 
 export interface WheelState {

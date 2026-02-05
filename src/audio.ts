@@ -9,8 +9,18 @@ export class AudioManager {
   private radarOscillator: OscillatorNode | null = null;
   private radarGain: GainNode | null = null;
 
+  // Menu music
+  private menuMusic: HTMLAudioElement | null = null;
+  private menuMusicGain: GainNode | null = null;
+  private menuMusicSource: MediaElementAudioSourceNode | null = null;
+  private isMusicFading: boolean = false;
+
   constructor() {
     // Audio context is created on first user interaction
+    // Pre-load menu music
+    this.menuMusic = new Audio('/src/assets/JumpThatGopher.m4a');
+    this.menuMusic.loop = true;
+    this.menuMusic.preload = 'auto';
   }
 
   private initAudio(): void {
@@ -207,6 +217,81 @@ export class AudioManager {
       this.radarGain.disconnect();
       this.radarGain = null;
     }
+  }
+
+  // Start menu music - attempts autoplay, connects to Web Audio API when available
+  startMenuMusic(): void {
+    if (!this.menuMusic) return;
+
+    // Don't restart if already playing
+    if (!this.menuMusic.paused && !this.isMusicFading) return;
+
+    // Reset state
+    this.isMusicFading = false;
+    this.menuMusic.volume = 0.3; // Match master gain level
+    this.menuMusic.currentTime = 0;
+
+    // Try to play directly (works if autoplay allowed or user already interacted)
+    this.menuMusic.play().catch(() => {
+      // Autoplay blocked - music will start when user interacts
+    });
+
+    // If audio context exists, connect for fade control
+    if (this.audioContext && this.masterGain && !this.menuMusicSource) {
+      this.menuMusicSource = this.audioContext.createMediaElementSource(this.menuMusic);
+      this.menuMusicGain = this.audioContext.createGain();
+      this.menuMusicSource.connect(this.menuMusicGain);
+      this.menuMusicGain.connect(this.masterGain);
+      this.menuMusic.volume = 1.0; // Web Audio API controls volume now
+    }
+  }
+
+  // Fade out menu music over duration (in seconds)
+  fadeOutMenuMusic(duration: number = 1.0): void {
+    if (!this.menuMusic) return;
+    if (this.isMusicFading) return;
+
+    this.isMusicFading = true;
+
+    // If connected to Web Audio API, use gain node for smooth fade
+    if (this.menuMusicGain && this.audioContext) {
+      const currentTime = this.audioContext.currentTime;
+      this.menuMusicGain.gain.setValueAtTime(this.menuMusicGain.gain.value, currentTime);
+      this.menuMusicGain.gain.linearRampToValueAtTime(0, currentTime + duration);
+    } else {
+      // Fallback: animate volume directly on audio element
+      const startVolume = this.menuMusic.volume;
+      const startTime = performance.now();
+      const fadeStep = () => {
+        const elapsed = (performance.now() - startTime) / 1000;
+        if (elapsed < duration) {
+          this.menuMusic!.volume = startVolume * (1 - elapsed / duration);
+          requestAnimationFrame(fadeStep);
+        } else {
+          this.menuMusic!.volume = 0;
+        }
+      };
+      requestAnimationFrame(fadeStep);
+    }
+
+    // Stop playback after fade completes
+    setTimeout(() => {
+      if (this.menuMusic) {
+        this.menuMusic.pause();
+      }
+    }, duration * 1000);
+  }
+
+  // Stop menu music immediately
+  stopMenuMusic(): void {
+    if (this.menuMusic) {
+      this.menuMusic.pause();
+      this.menuMusic.currentTime = 0;
+    }
+    if (this.menuMusicGain) {
+      this.menuMusicGain.gain.value = 0;
+    }
+    this.isMusicFading = false;
   }
 
   // Play explosion sound when satellite is destroyed
