@@ -7,7 +7,8 @@ import { ObjectPool } from './object-pool.ts';
 
 const BASE_SATELLITE_SPEED = 200; // pixels per second
 const SATELLITE_SIZE = 16;
-const SATELLITE_HEALTH = 100; // health points
+const BASE_SATELLITE_HEALTH = 100; // base health points
+const SATELLITE_HEALTH_SCALE = 0.08; // 8% health increase per difficulty level (slow ramp)
 
 export class SatelliteManager {
   private satellitePool: ObjectPool<Satellite>;
@@ -37,7 +38,8 @@ export class SatelliteManager {
       size: SATELLITE_SIZE,
       wasHit: false,
       blinkPhase: 0,
-      health: SATELLITE_HEALTH,
+      health: BASE_SATELLITE_HEALTH,
+      maxHealth: BASE_SATELLITE_HEALTH,
       hasBeenDamaged: false,
     };
   }
@@ -45,8 +47,14 @@ export class SatelliteManager {
   private resetSatellite(satellite: Satellite): void {
     satellite.wasHit = false;
     satellite.blinkPhase = 0;
-    satellite.health = SATELLITE_HEALTH;
+    satellite.health = BASE_SATELLITE_HEALTH;
+    satellite.maxHealth = BASE_SATELLITE_HEALTH;
     satellite.hasBeenDamaged = false;
+  }
+
+  private getScaledHealth(difficultyMultiplier: number): number {
+    // Slow health ramp: 8% increase per difficulty level
+    return Math.floor(BASE_SATELLITE_HEALTH * (1 + (difficultyMultiplier - 1) * SATELLITE_HEALTH_SCALE));
   }
 
   update(deltaTime: number, difficultyMultiplier: number): void {
@@ -87,36 +95,40 @@ export class SatelliteManager {
   private spawnSatellite(difficultyMultiplier: number): void {
     const groundY = this.renderer.getGroundY();
     const skyHeight = groundY - 50;
+    const minSkyY = 50;  // minimum y to stay in sky
+    const maxSkyY = skyHeight - 100;  // maximum y to stay well above ground
 
-    // Determine spawn edge and trajectory
-    const spawnEdge = Math.floor(Math.random() * 3); // 0: left, 1: right, 2: top
+    // Only spawn from left or right edges (no top spawning)
+    const spawnEdge = Math.floor(Math.random() * 2); // 0: left, 1: right
 
     let x: number, y: number, vx: number, vy: number;
     const speed = BASE_SATELLITE_SPEED * (0.8 + Math.random() * 0.4) * (1 + (difficultyMultiplier - 1) * 0.15);
 
-    switch (spawnEdge) {
-      case 0: // Left edge
-        x = -SATELLITE_SIZE;
-        y = 50 + Math.random() * (skyHeight - 100);
-        vx = speed;
-        vy = (Math.random() - 0.5) * speed * 0.5;
-        break;
-      case 1: // Right edge
-        x = this.renderer.width + SATELLITE_SIZE;
-        y = 50 + Math.random() * (skyHeight - 100);
-        vx = -speed;
-        vy = (Math.random() - 0.5) * speed * 0.5;
-        break;
-      case 2: // Top edge
-      default:
-        x = Math.random() * this.renderer.width;
-        y = -SATELLITE_SIZE;
-        vx = (Math.random() - 0.5) * speed;
-        vy = speed * 0.7;
-        break;
+    // Spawn at random height in sky
+    y = minSkyY + Math.random() * (maxSkyY - minSkyY);
+
+    // Calculate max allowed vy to ensure satellite stays in sky
+    // Time to cross screen horizontally: screenWidth / speed
+    const crossTime = this.renderer.width / speed;
+    // Max vertical distance that keeps us in sky bounds
+    const maxVerticalTravel = Math.min(y - minSkyY, maxSkyY - y);
+    const maxVyMagnitude = maxVerticalTravel / crossTime * 0.8; // 80% safety margin
+
+    // Slight angle but constrained to stay in sky
+    vy = (Math.random() - 0.5) * 2 * maxVyMagnitude;
+
+    if (spawnEdge === 0) {
+      // Left edge - move right
+      x = -SATELLITE_SIZE;
+      vx = speed;
+    } else {
+      // Right edge - move left
+      x = this.renderer.width + SATELLITE_SIZE;
+      vx = -speed;
     }
 
     // Acquire from pool and configure
+    const scaledHealth = this.getScaledHealth(difficultyMultiplier);
     const satellite = this.satellitePool.acquire();
     satellite.id = this.nextId++;
     satellite.x = x;
@@ -126,7 +138,8 @@ export class SatelliteManager {
     satellite.size = SATELLITE_SIZE;
     satellite.wasHit = false;
     satellite.blinkPhase = Math.random() * Math.PI * 2;
-    satellite.health = SATELLITE_HEALTH;
+    satellite.health = scaledHealth;
+    satellite.maxHealth = scaledHealth;
     satellite.hasBeenDamaged = false;
   }
 
@@ -176,7 +189,7 @@ export class SatelliteManager {
         satellite.y,
         satellite.size,
         satellite.blinkPhase,
-        satellite.health / SATELLITE_HEALTH,  // health ratio 0-1
+        satellite.health / satellite.maxHealth,  // health ratio 0-1
         satellite.hasBeenDamaged
       );
     }

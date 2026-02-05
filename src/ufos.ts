@@ -5,12 +5,12 @@ import type { Renderer } from './renderer.ts';
 import { drawUFO } from './sprites.ts';
 import { ObjectPool } from './object-pool.ts';
 
-const UFO_BASE_SPAWN_INTERVAL = 8.0; // seconds between spawns
+const UFO_BASE_SPAWN_INTERVAL = 12.0; // seconds between spawns (slower start)
 const UFO_HORIZONTAL_SPEED = 100; // pixels per second while approaching
 const UFO_DIVE_SPEED = 300; // pixels per second while diving
 const UFO_RETREAT_SPEED = 200; // pixels per second while retreating
 const UFO_HEALTH = 30; // low health (easy to kill with radar)
-const UFO_MIN_LEVEL = 3; // minimum difficulty level to spawn
+const UFO_MIN_LEVEL = 4; // minimum difficulty level to spawn
 
 export const UFO_RADIUS = 20; // collision radius
 

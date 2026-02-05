@@ -364,21 +364,27 @@ export class Game {
       }
     }
 
-    // Reset ALL source timers when satellite enters beam (not blanked and not radar)
+    // Reduce source values by 1/3 when satellite enters beam (not blanked and not radar)
+    // This only happens once per source, no matter how many satellite encounters
     if (collisions.newSatellitesInBeam.length > 0 && !this.state.isBeamBlanked && !this.state.isRadarActive) {
-      // Reset ALL sources with any observation progress
+      let penalizedCount = 0;
       for (const source of this.sources.getSources()) {
-        if (!source.isComplete && source.observedTime > 0) {
-          source.observedTime = 0;
+        if (!source.isComplete && !source.satellitePenalized) {
+          // Reduce points by 1/3 (keeping at least 1 point)
+          source.points = Math.max(1, Math.floor(source.points * 2 / 3));
+          source.satellitePenalized = true;
+          penalizedCount++;
         }
       }
-      this.addScorePopup(
-        this.renderer.width / 2,
-        100,
-        'ALL OBSERVATIONS RESET!',
-        '#ff8800'
-      );
-      this.audio.playSatelliteHit();
+      if (penalizedCount > 0) {
+        this.addScorePopup(
+          this.renderer.width / 2,
+          100,
+          'SATELLITE INTERFERENCE! VALUES REDUCED',
+          '#ff8800'
+        );
+        this.audio.playSatelliteHit();
+      }
     }
 
     // Process groundhog collisions

@@ -38,10 +38,12 @@ export class SourceManager {
       observationTime: 0,
       observedTime: 0,
       points: 0,
+      basePoints: 0,
       speed: 0,
       color: '',
       age: 0,
       isComplete: false,
+      satellitePenalized: false,
     };
   }
 
@@ -49,6 +51,7 @@ export class SourceManager {
     source.observedTime = 0;
     source.age = 0;
     source.isComplete = false;
+    source.satellitePenalized = false;
   }
 
   update(deltaTime: number, _difficultyMultiplier: number): void {
@@ -116,11 +119,13 @@ export class SourceManager {
     source.observationTime = config.observationTime;
     source.observedTime = 0;
     source.points = config.points;
+    source.basePoints = config.points;
     source.speed = config.speed;
     source.color = config.color;
     source.lifetime = config.lifetime;
     source.age = 0;
     source.isComplete = false;
+    source.satellitePenalized = false;
   }
 
   private spawnFRB(): void {
@@ -145,11 +150,13 @@ export class SourceManager {
     source.observationTime = config.observationTime;
     source.observedTime = 0;
     source.points = config.points;
+    source.basePoints = config.points;
     source.speed = 0; // FRBs don't move
     source.color = config.color;
     source.lifetime = config.lifetime;
     source.age = 0;
     source.isComplete = false;
+    source.satellitePenalized = false;
   }
 
   getSources(): Source[] {

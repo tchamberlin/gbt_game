@@ -5,9 +5,10 @@ import type { Renderer } from './renderer.ts';
 import { drawGroundhog } from './sprites.ts';
 import { ObjectPool } from './object-pool.ts';
 
-const BASE_SPAWN_INTERVAL = 5.0; // seconds between spawns
+const BASE_SPAWN_INTERVAL = 8.0; // seconds between spawns (slower start)
 const BASE_SPEED = 120; // pixels per second
 const GROUNDHOG_HEALTH = 100; // health points
+const GROUNDHOG_MIN_LEVEL = 2; // minimum difficulty level to spawn
 
 export class GroundhogManager {
   private groundhogPool: ObjectPool<Groundhog>;
@@ -50,11 +51,15 @@ export class GroundhogManager {
     this.elapsedTime += deltaTime;
     this.spawnTimer += deltaTime;
 
-    // Spawn groundhogs more frequently as difficulty increases
-    const spawnInterval = BASE_SPAWN_INTERVAL / Math.sqrt(difficultyMultiplier);
-    if (this.spawnTimer >= spawnInterval) {
-      this.spawnTimer = 0;
-      this.spawnGroundhog(difficultyMultiplier, gbtX);
+    // Only spawn groundhogs at level 2 or higher
+    if (difficultyMultiplier >= GROUNDHOG_MIN_LEVEL) {
+      // Spawn groundhogs more frequently as difficulty increases
+      const effectiveDifficulty = difficultyMultiplier - GROUNDHOG_MIN_LEVEL + 1;
+      const spawnInterval = BASE_SPAWN_INTERVAL / Math.sqrt(effectiveDifficulty);
+      if (this.spawnTimer >= spawnInterval) {
+        this.spawnTimer = 0;
+        this.spawnGroundhog(difficultyMultiplier, gbtX);
+      }
     }
 
     // Update all groundhogs and collect ones to remove

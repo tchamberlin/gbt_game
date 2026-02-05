@@ -5,10 +5,10 @@ import type { Renderer } from './renderer.ts';
 import { drawDeer } from './sprites.ts';
 import { ObjectPool } from './object-pool.ts';
 
-const DEER_BASE_SPAWN_INTERVAL = 6.0; // seconds between spawns
+const DEER_BASE_SPAWN_INTERVAL = 10.0; // seconds between spawns (slower start)
 const DEER_BASE_SPEED = 180; // pixels per second (faster than groundhogs)
 const DEER_HEALTH = 150; // health points (more than groundhogs)
-const DEER_MIN_LEVEL = 2; // minimum difficulty level to spawn
+const DEER_MIN_LEVEL = 3; // minimum difficulty level to spawn
 
 export const DEER_RADIUS = 25; // collision radius (larger than groundhogs)
 

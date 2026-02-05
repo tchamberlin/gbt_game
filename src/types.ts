@@ -76,11 +76,13 @@ export interface Source {
   observationTime: number;
   observedTime: number;   // accumulated observation time
   points: number;
+  basePoints: number;     // original points before satellite penalty
   speed: number;
   color: string;
   lifetime?: number;
   age: number;            // time since spawn
   isComplete: boolean;    // fully observed
+  satellitePenalized: boolean; // true if points already reduced by satellite
 }
 
 export interface Satellite {
@@ -93,6 +95,7 @@ export interface Satellite {
   wasHit: boolean;        // already penalized this pass
   blinkPhase: number;
   health: number;         // health points (0 = destroyed)
+  maxHealth: number;      // max health for this satellite (scales with difficulty)
   hasBeenDamaged: boolean; // true after first damage (shows health bar)
 }
 
