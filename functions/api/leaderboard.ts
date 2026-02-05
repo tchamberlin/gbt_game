@@ -12,11 +12,16 @@ interface LeaderboardEntry {
 }
 
 export const onRequestGet: PagesFunction<Env> = async (context) => {
-  const { env } = context;
+  const { env, request } = context;
 
   try {
+    // Get difficulty from query parameter, default to 'hard' for backwards compatibility
+    const url = new URL(request.url);
+    const difficulty = url.searchParams.get('difficulty') || 'hard';
+    const kvKey = difficulty === 'normal' ? 'scores_normal' : 'scores';
+
     // Get leaderboard from KV (stored as JSON array)
-    const data = await env.LEADERBOARD.get('scores', 'json') as LeaderboardEntry[] | null;
+    const data = await env.LEADERBOARD.get(kvKey, 'json') as LeaderboardEntry[] | null;
     const entries = data || [];
 
     // Ensure rank field is up to date

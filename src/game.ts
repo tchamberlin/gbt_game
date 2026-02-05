@@ -1,6 +1,7 @@
 // Game state management, scoring, and difficulty
 
-import type { GameState, SatelliteDebris, DroppedWheel, LeaderboardEntry, SubmitResult } from './types.ts';
+import type { GameState, SatelliteDebris, DroppedWheel, LeaderboardEntry, SubmitResult, DifficultyMode, DifficultyConfig } from './types.ts';
+import { DIFFICULTY_CONFIGS } from './types.ts';
 import { fetchLeaderboard, submitScore, generateGameToken } from './leaderboard.ts';
 import type { Renderer } from './renderer.ts';
 import { Telescope } from './telescope.ts';
@@ -15,10 +16,10 @@ import { drawExplosion, drawWheelExplosion, drawDroppedWheel } from './sprites.t
 
 const DIFFICULTY_INTERVAL = 30; // seconds between difficulty increases
 const SATELLITE_PENALTY_RATE = 30; // dollars per second while satellite in beam
-const HIGH_SCORE_KEY = 'gbt_observations_high_dollars';
+const HIGH_SCORE_KEY_PREFIX = 'gbt_observations_high_dollars';
 const OBSERVATION_BONUS_RATE = 10; // base dollars per second while observing source
 const RADAR_COST_RATE = 10; // dollars per second while radar is active
-const RADAR_DAMAGE_RATE = 100; // damage per second to enemies in beam
+const BASE_RADAR_DAMAGE_RATE = 100; // base damage per second to enemies in beam
 const SATELLITE_DESTRUCTION_FINE = 500; // fine for destroying a satellite
 const DEBRIS_GRAVITY = 300; // pixels per second squared
 const DEBRIS_SIZE = 12; // size of debris for collision
@@ -55,8 +56,13 @@ export class Game {
   private droppedWheels: DroppedWheel[] = [];
   private nextWheelId: number = 0;
 
+  // Difficulty state
+  private selectedDifficulty: DifficultyMode | null = null;
+
   // Leaderboard state
   private leaderboard: LeaderboardEntry[] = [];
+  private normalLeaderboard: LeaderboardEntry[] = [];
+  private hardLeaderboard: LeaderboardEntry[] = [];
   private leaderboardLoading: boolean = false;
   private playerInitials: string = '';
   private initialsInputActive: boolean = false;
@@ -66,6 +72,7 @@ export class Game {
   private cursorBlink: number = 0;
   private showLeaderboardOverlay: boolean = false;
   private gameOverButtons: { submit: { x: number; y: number; width: number; height: number } | null; skip: { x: number; y: number; width: number; height: number } | null } = { submit: null, skip: null };
+  private difficultyButtons: { normal: { x: number; y: number; width: number; height: number } | null; hard: { x: number; y: number; width: number; height: number } | null } = { normal: null, hard: null };
 
   constructor(renderer: Renderer) {
     this.renderer = renderer;
@@ -90,24 +97,39 @@ export class Game {
       satellitesDestroyed: 0,
       radarDisabledTimer: 0,
       welcomeStage: 0,
+      difficultyMode: this.selectedDifficulty,
     };
   }
 
+  private getDifficultyConfig(): DifficultyConfig {
+    return DIFFICULTY_CONFIGS[this.selectedDifficulty || 'normal'];
+  }
+
+  private getHighScoreKey(): string {
+    if (!this.selectedDifficulty || this.selectedDifficulty === 'hard') {
+      return HIGH_SCORE_KEY_PREFIX;  // Preserve existing hard mode key
+    }
+    return `${HIGH_SCORE_KEY_PREFIX}_${this.selectedDifficulty}`;
+  }
+
   private loadHighScore(): number {
-    const stored = localStorage.getItem(HIGH_SCORE_KEY);
+    const stored = localStorage.getItem(this.getHighScoreKey());
     return stored ? parseInt(stored, 10) : 0;
   }
 
   private saveHighScore(): void {
     if (this.state.score > this.state.highScore) {
       this.state.highScore = this.state.score;
-      localStorage.setItem(HIGH_SCORE_KEY, this.state.highScore.toString());
+      localStorage.setItem(this.getHighScoreKey(), this.state.highScore.toString());
     }
   }
 
   start(): void {
+    if (!this.selectedDifficulty) return; // Safety check
     this.state.isStarted = true;
     this.state.isPaused = false;
+    this.state.difficultyMode = this.selectedDifficulty;
+    this.state.highScore = this.loadHighScore(); // Reload high score for selected difficulty
     this.audio.enable();
     this.audio.fadeOutMenuMusic(1.0);
     this.gameStartTime = Date.now();
@@ -195,12 +217,15 @@ export class Game {
     // Track FRB count before update
     const frbCountBefore = this.sources.getSources().filter((s) => s.type === 'frb').length;
 
-    // Update game objects
-    this.sources.update(deltaTime, this.state.difficultyLevel);
-    this.satellites.update(deltaTime, this.state.difficultyLevel);
-    this.groundhogs.update(deltaTime, this.state.difficultyLevel, this.telescope.state.x);
-    this.deer.update(deltaTime, this.state.difficultyLevel, this.telescope.state.x);
-    this.ufos.update(deltaTime, this.state.difficultyLevel, this.telescope.state.x, this.telescope.state.y);
+    // Get difficulty config for this frame
+    const diffConfig = this.getDifficultyConfig();
+
+    // Update game objects with difficulty config
+    this.sources.update(deltaTime, this.state.difficultyLevel, diffConfig);
+    this.satellites.update(deltaTime, this.state.difficultyLevel, diffConfig);
+    this.groundhogs.update(deltaTime, this.state.difficultyLevel, this.telescope.state.x, diffConfig);
+    this.deer.update(deltaTime, this.state.difficultyLevel, this.telescope.state.x, diffConfig);
+    this.ufos.update(deltaTime, this.state.difficultyLevel, this.telescope.state.x, this.telescope.state.y, diffConfig);
 
     // Check for new FRBs
     const frbCountAfter = this.sources.getSources().filter((s) => s.type === 'frb').length;
@@ -265,8 +290,8 @@ export class Game {
       // Start radar sound
       this.audio.startRadarSound();
 
-      // Calculate damage this frame
-      const damage = RADAR_DAMAGE_RATE * deltaTime;
+      // Calculate damage this frame (apply difficulty multiplier)
+      const damage = BASE_RADAR_DAMAGE_RATE * diffConfig.radarDamageMultiplier * deltaTime;
 
       // Damage satellites in beam
       for (const satellite of collisions.satellitesInBeam) {
@@ -630,22 +655,34 @@ export class Game {
   private async loadLeaderboard(): Promise<void> {
     this.leaderboardLoading = true;
     try {
-      this.leaderboard = await fetchLeaderboard();
+      // Load both leaderboards in parallel
+      const [normal, hard] = await Promise.all([
+        fetchLeaderboard('normal'),
+        fetchLeaderboard('hard')
+      ]);
+      this.normalLeaderboard = normal;
+      this.hardLeaderboard = hard;
+      // Also set the main leaderboard based on selected difficulty
+      if (this.selectedDifficulty) {
+        this.leaderboard = this.selectedDifficulty === 'normal' ? normal : hard;
+      }
     } catch (error) {
       console.error('Failed to load leaderboard:', error);
+      this.normalLeaderboard = [];
+      this.hardLeaderboard = [];
       this.leaderboard = [];
     }
     this.leaderboardLoading = false;
   }
 
   private async handleScoreSubmit(): Promise<void> {
-    if (this.submitState !== 'idle' || this.playerInitials.length !== 3) return;
+    if (this.submitState !== 'idle' || this.playerInitials.length !== 3 || !this.selectedDifficulty) return;
 
     this.submitState = 'submitting';
     const token = generateGameToken(this.state.score, this.gameStartTime);
 
     try {
-      const result = await submitScore(this.playerInitials, this.state.score, token);
+      const result = await submitScore(this.playerInitials, this.state.score, token, this.selectedDifficulty);
       if (result.success) {
         this.submitState = 'submitted';
         this.submitRank = result.rank || null;
@@ -734,14 +771,31 @@ export class Game {
 
     if (!this.state.isStarted) {
       if (this.state.welcomeStage === 0) {
-        // First click: enable audio, start music, show instructions
+        // First click: enable audio, start music, show combined screen
         this.audio.enable();
         this.audio.startMenuMusic();
         this.state.welcomeStage = 1;
-        this.loadLeaderboard(); // Load leaderboard for instructions screen
-      } else {
-        // Second click: start the game
-        this.start();
+        this.loadLeaderboard(); // Load default leaderboard
+      } else if (this.state.welcomeStage === 1) {
+        // Check if clicked on difficulty buttons - starts game immediately
+        if (this.difficultyButtons.normal) {
+          const btn = this.difficultyButtons.normal;
+          if (x >= btn.x && x <= btn.x + btn.width && y >= btn.y && y <= btn.y + btn.height) {
+            this.selectedDifficulty = 'normal';
+            this.state.highScore = this.loadHighScore();
+            this.start();
+            return;
+          }
+        }
+        if (this.difficultyButtons.hard) {
+          const btn = this.difficultyButtons.hard;
+          if (x >= btn.x && x <= btn.x + btn.width && y >= btn.y && y <= btn.y + btn.height) {
+            this.selectedDifficulty = 'hard';
+            this.state.highScore = this.loadHighScore();
+            this.start();
+            return;
+          }
+        }
       }
     } else if (this.state.isPaused) {
       this.resume();
@@ -973,12 +1027,14 @@ export class Game {
       18
     );
 
-    // Difficulty level
+    // Difficulty level and mode
+    const diffConfig = this.getDifficultyConfig();
+    const modeColor = this.selectedDifficulty === 'normal' ? '#00ff00' : '#ff6666';
     this.renderer.drawText(
-      `LEVEL: ${Math.floor(this.state.difficultyLevel)}`,
+      `${diffConfig.label.toUpperCase()} - LEVEL ${Math.floor(this.state.difficultyLevel)}`,
       this.renderer.width - padding,
       padding,
-      '#ffff00',
+      modeColor,
       18,
       'right'
     );
@@ -1079,19 +1135,17 @@ export class Game {
         'center'
       );
 
-      // High score
-      if (this.state.highScore > 0) {
-        this.renderer.drawText(
-          `Your Best: ${formatDollars(this.state.highScore)}`,
-          centerX,
-          centerY + 90,
-          '#ffff00',
-          22,
-          'center'
-        );
-      }
-
       this.renderer.drawText('Click to continue', centerX, centerY + 150, '#ffffff', 24, 'center');
+
+      // Credits
+      this.renderer.drawText(
+        'Thomas Chamberlin: Prompts  •  Claude Opus 4.5: Code  •  Paul Marganian: Music',
+        centerX,
+        this.renderer.height - 45,
+        '#888888',
+        12,
+        'center'
+      );
 
       // Disclaimer
       this.renderer.drawText(
@@ -1103,75 +1157,132 @@ export class Game {
         'center'
       );
     } else {
-      // Stage 1: Instructions + Leaderboard
-      const leftX = this.renderer.width * 0.3;
-      const rightX = this.renderer.width * 0.72;
+      // Stage 1: Instructions + both leaderboards with difficulty buttons
+      const col1X = this.renderer.width * 0.2;   // How to Play
+      const col2X = this.renderer.width * 0.5;   // Normal leaderboard
+      const col3X = this.renderer.width * 0.8;   // Hard leaderboard
 
-      // Instructions on left
-      this.renderer.drawText('HOW TO PLAY', leftX, 80, '#00ff00', 28, 'center');
+      // Load high scores for both difficulties
+      const normalHighScore = parseInt(localStorage.getItem(`${HIGH_SCORE_KEY_PREFIX}_normal`) || '0', 10);
+      const hardHighScore = parseInt(localStorage.getItem(HIGH_SCORE_KEY_PREFIX) || '0', 10);
+
+      // Instructions column
+      this.renderer.drawText('HOW TO PLAY', col1X, 80, '#00ff00', 24, 'center');
 
       const instructions = [
-        'Move mouse to aim the telescope beam',
+        'Mouse: aim beam',
+        'A/D: move left/right',
+        'W/SPACE: jump',
         '',
-        'A/D to move left/right',
-        'W/SPACE to jump',
+        'LEFT CLICK: observe',
+        '(beam blanked by default)',
         '',
-        'LEFT CLICK to observe sources',
-        '(beam is blanked by default)',
+        'RIGHT CLICK: radar',
+        '(destroys enemies, $10/s)',
         '',
-        'RIGHT CLICK for radar beam',
-        'Destroys enemies ($10/s cost)',
+        'Avoid satellites!',
+        'They reset observations',
         '',
-        'Avoid satellites - they reset observations!',
-        '',
-        'Roll over debris to salvage wheels',
-        'Recover dropped wheels from UFOs',
+        'Roll over debris',
+        'to salvage wheels',
       ];
 
       for (let i = 0; i < instructions.length; i++) {
         this.renderer.drawText(
           instructions[i]!,
-          leftX,
+          col1X,
           120 + i * 22,
           '#cccccc',
-          16,
+          14,
           'center'
         );
       }
 
-      // Leaderboard on right
-      this.renderer.drawText('LEADERBOARD', rightX, 80, '#ffff00', 28, 'center');
+      // Normal leaderboard column with button
+      const buttonWidth = 160;
+      const buttonHeight = 55;
+      const normalButtonX = col2X - buttonWidth / 2;
+      const hardButtonX = col3X - buttonWidth / 2;
+      const buttonsY = 60;
 
+      // Pulse effect for buttons
+      const pulse = (Math.sin(Date.now() / 300) + 1) / 2; // 0 to 1
+      const normalPulseAlpha = 0.5 + pulse * 0.5; // 0.5 to 1.0
+
+      // Normal button
+      this.renderer.ctx.fillStyle = '#223322';
+      this.renderer.ctx.fillRect(normalButtonX, buttonsY, buttonWidth, buttonHeight);
+      this.renderer.ctx.strokeStyle = `rgba(68, 204, 68, ${normalPulseAlpha})`;
+      this.renderer.ctx.lineWidth = 2 + pulse;
+      this.renderer.ctx.strokeRect(normalButtonX, buttonsY, buttonWidth, buttonHeight);
+      const normalBtnCenterY = buttonsY + buttonHeight / 2;
+      this.renderer.drawText('NORMAL', col2X, normalBtnCenterY - 6, '#00ff00', 20, 'center');
+      const normalBestText = normalHighScore > 0 ? formatDollars(normalHighScore) : 'N/A';
+      this.renderer.drawText(normalBestText, col2X, normalBtnCenterY + 14, '#ffff00', 13, 'center');
+      this.difficultyButtons.normal = { x: normalButtonX, y: buttonsY, width: buttonWidth, height: buttonHeight };
+
+      // Normal leaderboard
+      const leaderboardStartY = buttonsY + buttonHeight + 20;
       if (this.leaderboardLoading) {
-        this.renderer.drawText('Loading...', rightX, 140, '#888888', 16, 'center');
-      } else if (this.leaderboard.length === 0) {
-        this.renderer.drawText('No scores yet - be the first!', rightX, 140, '#888888', 16, 'center');
+        this.renderer.drawText('Loading...', col2X, leaderboardStartY + 20, '#888888', 14, 'center');
+      } else if (this.normalLeaderboard.length === 0) {
+        this.renderer.drawText('No scores yet', col2X, leaderboardStartY + 20, '#888888', 14, 'center');
+        this.renderer.drawText('Be the first!', col2X, leaderboardStartY + 40, '#888888', 14, 'center');
       } else {
-        for (let i = 0; i < this.leaderboard.length; i++) {
-          const entry = this.leaderboard[i]!;
-          const y = 130 + i * 28;
+        for (let i = 0; i < this.normalLeaderboard.length; i++) {
+          const entry = this.normalLeaderboard[i]!;
+          const y = leaderboardStartY + i * 24;
           const rankColor = i === 0 ? '#ffd700' : i === 1 ? '#c0c0c0' : i === 2 ? '#cd7f32' : '#888888';
 
-          this.renderer.drawText(`${entry.rank}.`, rightX - 100, y, rankColor, 18, 'right');
-          this.renderer.drawText(entry.name, rightX - 70, y, '#ffffff', 18, 'left');
-          this.renderer.drawText(formatDollars(entry.score), rightX + 100, y, '#00ff00', 18, 'right');
+          this.renderer.drawText(`${entry.rank}.`, col2X - 70, y, rankColor, 16, 'right');
+          this.renderer.drawText(entry.name, col2X - 50, y, '#ffffff', 16, 'left');
+          this.renderer.drawText(formatDollars(entry.score), col2X + 70, y, '#00ff00', 16, 'right');
         }
       }
 
-      // High score below leaderboard
-      if (this.state.highScore > 0) {
-        this.renderer.drawText(
-          `Your Best: ${formatDollars(this.state.highScore)}`,
-          rightX,
-          430,
-          '#ffff00',
-          18,
-          'center'
-        );
+      // Hard button
+      const hardPulseAlpha = 0.5 + pulse * 0.5;
+      this.renderer.ctx.fillStyle = '#332222';
+      this.renderer.ctx.fillRect(hardButtonX, buttonsY, buttonWidth, buttonHeight);
+      this.renderer.ctx.strokeStyle = `rgba(204, 68, 68, ${hardPulseAlpha})`;
+      this.renderer.ctx.lineWidth = 2 + pulse;
+      this.renderer.ctx.strokeRect(hardButtonX, buttonsY, buttonWidth, buttonHeight);
+      const hardBtnCenterY = buttonsY + buttonHeight / 2;
+      this.renderer.drawText('HARD', col3X, hardBtnCenterY - 6, '#ff4444', 20, 'center');
+      const hardBestText = hardHighScore > 0 ? formatDollars(hardHighScore) : 'N/A';
+      this.renderer.drawText(hardBestText, col3X, hardBtnCenterY + 14, '#ffff00', 13, 'center');
+      this.difficultyButtons.hard = { x: hardButtonX, y: buttonsY, width: buttonWidth, height: buttonHeight };
+
+      // Hard leaderboard
+      if (this.leaderboardLoading) {
+        this.renderer.drawText('Loading...', col3X, leaderboardStartY + 20, '#888888', 14, 'center');
+      } else if (this.hardLeaderboard.length === 0) {
+        this.renderer.drawText('No scores yet', col3X, leaderboardStartY + 20, '#888888', 14, 'center');
+        this.renderer.drawText('Be the first!', col3X, leaderboardStartY + 40, '#888888', 14, 'center');
+      } else {
+        for (let i = 0; i < this.hardLeaderboard.length; i++) {
+          const entry = this.hardLeaderboard[i]!;
+          const y = leaderboardStartY + i * 24;
+          const rankColor = i === 0 ? '#ffd700' : i === 1 ? '#c0c0c0' : i === 2 ? '#cd7f32' : '#888888';
+
+          this.renderer.drawText(`${entry.rank}.`, col3X - 70, y, rankColor, 16, 'right');
+          this.renderer.drawText(entry.name, col3X - 50, y, '#ffffff', 16, 'left');
+          this.renderer.drawText(formatDollars(entry.score), col3X + 70, y, '#00ff00', 16, 'right');
+        }
       }
 
-      // Click to start
-      this.renderer.drawText('Click to start', centerX, this.renderer.height - 50, '#ffffff', 28, 'center');
+      // Click to start hint
+      this.renderer.drawText('Click NORMAL or HARD to start', centerX, this.renderer.height - 70, '#ffffff', 20, 'center');
+
+      // Credits
+      this.renderer.drawText(
+        'Thomas Chamberlin: Prompts  •  Claude Opus 4.5: Code  •  Paul Marganian: Music',
+        centerX,
+        this.renderer.height - 45,
+        '#888888',
+        12,
+        'center'
+      );
 
       // Disclaimer
       this.renderer.drawText(
@@ -1209,7 +1320,13 @@ export class Game {
 
     // Title
     this.renderer.drawText('GAME OVER', centerX, y, '#ff4444', 42, 'center');
-    y += 50;
+    y += 40;
+
+    // Difficulty mode
+    const diffConfig = this.getDifficultyConfig();
+    const modeColor = this.selectedDifficulty === 'normal' ? '#00ff00' : '#ff6666';
+    this.renderer.drawText(`Difficulty: ${diffConfig.label}`, centerX, y, modeColor, 16, 'center');
+    y += 25;
 
     // Cause of death
     this.renderer.drawText('All wheels destroyed!', centerX, y, '#ff8888', 16, 'center');
@@ -1315,8 +1432,8 @@ export class Game {
         y += 35;
       }
 
-      // Leaderboard section
-      this.renderer.drawText('--- TOP 10 ---', centerX, y, '#888888', 14, 'center');
+      // Leaderboard section with difficulty label
+      this.renderer.drawText(`--- TOP 10 (${diffConfig.label.toUpperCase()}) ---`, centerX, y, '#888888', 14, 'center');
       y += 22;
 
       if (this.leaderboardLoading) {
@@ -1357,8 +1474,9 @@ export class Game {
     const centerX = this.renderer.width / 2;
     const centerY = this.renderer.height / 2;
 
-    // Title
-    this.renderer.drawText('LEADERBOARD', centerX, centerY - 180, '#ffff00', 36, 'center');
+    // Title with difficulty
+    const diffConfig = this.getDifficultyConfig();
+    this.renderer.drawText(`LEADERBOARD (${diffConfig.label.toUpperCase()})`, centerX, centerY - 180, '#ffff00', 36, 'center');
 
     this.renderer.drawText('--- TOP 10 ---', centerX, centerY - 130, '#888888', 16, 'center');
 

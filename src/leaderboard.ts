@@ -1,6 +1,6 @@
 // Leaderboard API client
 
-import type { LeaderboardEntry, SubmitResult } from './types.ts';
+import type { LeaderboardEntry, SubmitResult, DifficultyMode } from './types.ts';
 
 const API_BASE = '/api';
 
@@ -23,10 +23,10 @@ export function generateGameToken(score: number, startTime: number): string {
   return `${now}:${hash}`;
 }
 
-// Fetch leaderboard (top 10)
-export async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
+// Fetch leaderboard (top 10) for the specified difficulty
+export async function fetchLeaderboard(difficulty: DifficultyMode = 'hard'): Promise<LeaderboardEntry[]> {
   try {
-    const response = await fetch(`${API_BASE}/leaderboard`);
+    const response = await fetch(`${API_BASE}/leaderboard?difficulty=${difficulty}`);
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
@@ -38,11 +38,12 @@ export async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
   }
 }
 
-// Submit score to leaderboard
+// Submit score to leaderboard for the specified difficulty
 export async function submitScore(
   name: string,
   score: number,
-  gameToken: string
+  gameToken: string,
+  difficulty: DifficultyMode = 'hard'
 ): Promise<SubmitResult> {
   try {
     const response = await fetch(`${API_BASE}/submit-score`, {
@@ -50,7 +51,7 @@ export async function submitScore(
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ name, score, gameToken }),
+      body: JSON.stringify({ name, score, gameToken, difficulty }),
     });
 
     if (!response.ok) {

@@ -15,6 +15,7 @@ interface SubmitRequest {
   name: string;
   score: number;
   gameToken: string;
+  difficulty?: string;
 }
 
 const MAX_ENTRIES = 10;
@@ -60,7 +61,10 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
   try {
     const body = await request.json() as SubmitRequest;
-    const { name, score, gameToken } = body;
+    const { name, score, gameToken, difficulty = 'hard' } = body;
+
+    // Determine KV key based on difficulty
+    const kvKey = difficulty === 'normal' ? 'scores_normal' : 'scores';
 
     // Validate name: exactly 3 uppercase letters
     if (!name || typeof name !== 'string') {
@@ -94,8 +98,8 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       });
     }
 
-    // Get current leaderboard
-    const data = await env.LEADERBOARD.get('scores', 'json') as LeaderboardEntry[] | null;
+    // Get current leaderboard for the specified difficulty
+    const data = await env.LEADERBOARD.get(kvKey, 'json') as LeaderboardEntry[] | null;
     const entries = data || [];
 
     // Create new entry
@@ -122,8 +126,8 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     );
     const finalRank = fullRank >= 0 ? fullRank + 1 : null;
 
-    // Save updated leaderboard
-    await env.LEADERBOARD.put('scores', JSON.stringify(topEntries));
+    // Save updated leaderboard for the specified difficulty
+    await env.LEADERBOARD.put(kvKey, JSON.stringify(topEntries));
 
     // Return the updated leaderboard with the response to avoid cache issues
     return new Response(JSON.stringify({

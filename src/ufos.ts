@@ -1,6 +1,6 @@
 // UFO spawning and management
 
-import type { UFO, UFOState } from './types.ts';
+import type { UFO, UFOState, DifficultyConfig } from './types.ts';
 import type { Renderer } from './renderer.ts';
 import { drawUFO } from './sprites.ts';
 import { ObjectPool } from './object-pool.ts';
@@ -10,7 +10,6 @@ const UFO_HORIZONTAL_SPEED = 100; // pixels per second while approaching
 const UFO_DIVE_SPEED = 300; // pixels per second while diving
 const UFO_RETREAT_SPEED = 200; // pixels per second while retreating
 const UFO_HEALTH = 30; // low health (easy to kill with radar)
-const UFO_MIN_LEVEL = 4; // minimum difficulty level to spawn
 
 export const UFO_RADIUS = 20; // collision radius
 
@@ -56,18 +55,19 @@ export class UFOManager {
     ufo.stolenWheels = 0;
   }
 
-  update(deltaTime: number, difficultyLevel: number, gbtX: number, gbtY: number): void {
+  update(deltaTime: number, difficultyLevel: number, gbtX: number, gbtY: number, config: DifficultyConfig): void {
     this.elapsedTime += deltaTime;
     this.spawnTimer += deltaTime;
 
-    // Only spawn UFOs at level 3 or higher
-    if (difficultyLevel >= UFO_MIN_LEVEL) {
+    // Only spawn UFOs at configured minimum level
+    if (difficultyLevel >= config.ufoMinLevel) {
       // Spawn UFOs more frequently as difficulty increases
-      const difficultyMultiplier = difficultyLevel - UFO_MIN_LEVEL + 1;
-      const spawnInterval = UFO_BASE_SPAWN_INTERVAL / Math.sqrt(difficultyMultiplier);
+      const difficultyMultiplier = difficultyLevel - config.ufoMinLevel + 1;
+      // Apply spawn multiplier from config (higher = slower spawns)
+      const spawnInterval = (UFO_BASE_SPAWN_INTERVAL * config.ufoSpawnMultiplier) / Math.sqrt(difficultyMultiplier);
       if (this.spawnTimer >= spawnInterval) {
         this.spawnTimer = 0;
-        this.spawnUFO(difficultyLevel, gbtX);
+        this.spawnUFO(difficultyLevel, gbtX, config);
       }
     }
 
@@ -135,7 +135,7 @@ export class UFOManager {
     }
   }
 
-  private spawnUFO(difficultyLevel: number, gbtX: number): void {
+  private spawnUFO(difficultyLevel: number, gbtX: number, config: DifficultyConfig): void {
     const groundY = this.renderer.getGroundY();
     const skyHeight = groundY - 100;
 
@@ -148,7 +148,7 @@ export class UFOManager {
     const vx = fromLeft ? UFO_HORIZONTAL_SPEED : -UFO_HORIZONTAL_SPEED;
 
     // Speed increases slightly with difficulty
-    const difficultyMultiplier = difficultyLevel - UFO_MIN_LEVEL + 1;
+    const difficultyMultiplier = difficultyLevel - config.ufoMinLevel + 1;
     const speedMult = 1 + (difficultyMultiplier - 1) * 0.2;
 
     // Acquire from pool and configure

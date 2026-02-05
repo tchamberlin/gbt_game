@@ -37,7 +37,11 @@ export default {
     // API: GET /api/leaderboard
     if (url.pathname === '/api/leaderboard' && request.method === 'GET') {
       try {
-        const data = await env.LEADERBOARD.get('scores', 'json') as LeaderboardEntry[] | null;
+        // Get difficulty from query parameter, default to 'hard' for backwards compatibility
+        const difficulty = url.searchParams.get('difficulty') || 'hard';
+        const kvKey = difficulty === 'normal' ? 'scores_normal' : 'scores';
+
+        const data = await env.LEADERBOARD.get(kvKey, 'json') as LeaderboardEntry[] | null;
         const entries = (data || []).map((entry, index) => ({ ...entry, rank: index + 1 }));
         return new Response(JSON.stringify(entries), {
           headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=10' },
@@ -53,8 +57,11 @@ export default {
     // API: POST /api/submit-score
     if (url.pathname === '/api/submit-score' && request.method === 'POST') {
       try {
-        const body = await request.json() as { name: string; score: number; gameToken: string };
-        const { name, score, gameToken } = body;
+        const body = await request.json() as { name: string; score: number; gameToken: string; difficulty?: string };
+        const { name, score, gameToken, difficulty = 'hard' } = body;
+
+        // Determine KV key based on difficulty
+        const kvKey = difficulty === 'normal' ? 'scores_normal' : 'scores';
 
         // Validate name
         const normalizedName = (name || '').toUpperCase().trim();
@@ -82,8 +89,8 @@ export default {
           });
         }
 
-        // Get current leaderboard
-        const data = await env.LEADERBOARD.get('scores', 'json') as LeaderboardEntry[] | null;
+        // Get current leaderboard for the specified difficulty
+        const data = await env.LEADERBOARD.get(kvKey, 'json') as LeaderboardEntry[] | null;
         const entries = data || [];
 
         // Add new entry
@@ -106,7 +113,7 @@ export default {
           (e) => e.name === newEntry.name && e.score === newEntry.score && e.timestamp === newEntry.timestamp
         );
 
-        await env.LEADERBOARD.put('scores', JSON.stringify(topEntries));
+        await env.LEADERBOARD.put(kvKey, JSON.stringify(topEntries));
 
         return new Response(JSON.stringify({
           success: true,

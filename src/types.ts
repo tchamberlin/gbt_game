@@ -1,5 +1,50 @@
 // Core game types
 
+export type DifficultyMode = 'normal' | 'hard';
+
+export interface DifficultyConfig {
+  mode: DifficultyMode;
+  label: string;
+  deerMinLevel: number;
+  ufoMinLevel: number;
+  groundhogSpawnMultiplier: number;
+  satelliteSpawnMultiplier: number;
+  deerSpawnMultiplier: number;
+  ufoSpawnMultiplier: number;
+  observationTimeMultiplier: number;
+  radarDamageMultiplier: number;
+  leaderboardKey: string;
+}
+
+export const DIFFICULTY_CONFIGS: Record<DifficultyMode, DifficultyConfig> = {
+  normal: {
+    mode: 'normal',
+    label: 'Normal',
+    deerMinLevel: 4,
+    ufoMinLevel: 6,
+    groundhogSpawnMultiplier: 1.3,  // 30% slower spawns
+    satelliteSpawnMultiplier: 1.3,
+    deerSpawnMultiplier: 1.3,
+    ufoSpawnMultiplier: 1.3,
+    observationTimeMultiplier: 0.8,  // 20% faster observations
+    radarDamageMultiplier: 1.25,     // 25% more radar damage
+    leaderboardKey: 'scores_normal',
+  },
+  hard: {
+    mode: 'hard',
+    label: 'Hard',
+    deerMinLevel: 3,
+    ufoMinLevel: 4,
+    groundhogSpawnMultiplier: 1.0,
+    satelliteSpawnMultiplier: 1.0,
+    deerSpawnMultiplier: 1.0,
+    ufoSpawnMultiplier: 1.0,
+    observationTimeMultiplier: 1.0,
+    radarDamageMultiplier: 1.0,
+    leaderboardKey: 'scores',
+  },
+};
+
 export interface Point {
   x: number;
   y: number;
@@ -23,7 +68,8 @@ export interface GameState {
   isRadarActive: boolean;
   satellitesDestroyed: number;
   radarDisabledTimer: number;
-  welcomeStage: number; // 0 = title screen, 1 = instructions screen
+  welcomeStage: number; // 0 = title screen, 1 = combined instructions/difficulty/leaderboard screen
+  difficultyMode: DifficultyMode | null;
 }
 
 export interface WheelState {

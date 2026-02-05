@@ -1,6 +1,6 @@
 // Satellite spawning and management
 
-import type { Satellite } from './types.ts';
+import type { Satellite, DifficultyConfig } from './types.ts';
 import type { Renderer } from './renderer.ts';
 import { drawSatellite } from './sprites.ts';
 import { ObjectPool } from './object-pool.ts';
@@ -57,12 +57,13 @@ export class SatelliteManager {
     return Math.floor(BASE_SATELLITE_HEALTH * (1 + (difficultyMultiplier - 1) * SATELLITE_HEALTH_SCALE));
   }
 
-  update(deltaTime: number, difficultyMultiplier: number): void {
+  update(deltaTime: number, difficultyMultiplier: number, config: DifficultyConfig): void {
     // Update spawn timer
     this.spawnTimer += deltaTime;
 
     // Spawn satellites more frequently as difficulty increases
-    const spawnInterval = this.baseSpawnInterval / difficultyMultiplier;
+    // Apply spawn multiplier from config (higher = slower spawns)
+    const spawnInterval = (this.baseSpawnInterval * config.satelliteSpawnMultiplier) / difficultyMultiplier;
     if (this.spawnTimer >= spawnInterval) {
       this.spawnTimer = 0;
       this.spawnSatellite(difficultyMultiplier);

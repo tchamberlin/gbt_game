@@ -1,6 +1,6 @@
 // Groundhog spawning and management
 
-import type { Groundhog } from './types.ts';
+import type { Groundhog, DifficultyConfig } from './types.ts';
 import type { Renderer } from './renderer.ts';
 import { drawGroundhog } from './sprites.ts';
 import { ObjectPool } from './object-pool.ts';
@@ -47,7 +47,7 @@ export class GroundhogManager {
     groundhog.hasBeenDamaged = false;
   }
 
-  update(deltaTime: number, difficultyMultiplier: number, gbtX: number): void {
+  update(deltaTime: number, difficultyMultiplier: number, gbtX: number, config: DifficultyConfig): void {
     this.elapsedTime += deltaTime;
     this.spawnTimer += deltaTime;
 
@@ -55,7 +55,8 @@ export class GroundhogManager {
     if (difficultyMultiplier >= GROUNDHOG_MIN_LEVEL) {
       // Spawn groundhogs more frequently as difficulty increases
       const effectiveDifficulty = difficultyMultiplier - GROUNDHOG_MIN_LEVEL + 1;
-      const spawnInterval = BASE_SPAWN_INTERVAL / Math.sqrt(effectiveDifficulty);
+      // Apply spawn multiplier from config (higher = slower spawns)
+      const spawnInterval = (BASE_SPAWN_INTERVAL * config.groundhogSpawnMultiplier) / Math.sqrt(effectiveDifficulty);
       if (this.spawnTimer >= spawnInterval) {
         this.spawnTimer = 0;
         this.spawnGroundhog(difficultyMultiplier, gbtX);

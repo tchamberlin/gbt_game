@@ -1,6 +1,6 @@
 // Science source spawning and management
 
-import type { Source, SourceType } from './types.ts';
+import type { Source, SourceType, DifficultyConfig } from './types.ts';
 import { SOURCE_CONFIGS } from './types.ts';
 import type { Renderer } from './renderer.ts';
 import { drawSource } from './sprites.ts';
@@ -16,6 +16,7 @@ export class SourceManager {
   private frbTimer: number = 0;
   private baseSpawnInterval: number = 2.0; // seconds between spawns
   private frbBaseInterval: number = 8.0;  // seconds between FRB chances
+  private currentConfig: DifficultyConfig | null = null;
 
   constructor(renderer: Renderer) {
     this.renderer = renderer;
@@ -54,7 +55,10 @@ export class SourceManager {
     source.satellitePenalized = false;
   }
 
-  update(deltaTime: number, _difficultyMultiplier: number): void {
+  update(deltaTime: number, _difficultyMultiplier: number, config: DifficultyConfig): void {
+    // Store config for spawning
+    this.currentConfig = config;
+
     // Update spawn timers
     this.spawnTimer += deltaTime;
     this.frbTimer += deltaTime;
@@ -101,7 +105,7 @@ export class SourceManager {
   }
 
   private spawnSource(type: SourceType): void {
-    const config = SOURCE_CONFIGS[type];
+    const sourceConfig = SOURCE_CONFIGS[type];
     const groundY = this.renderer.getGroundY();
 
     // Spawn in the sky portion (upper 70% of screen before ground)
@@ -109,27 +113,30 @@ export class SourceManager {
     const maxY = groundY - 100;
     const y = minY + Math.random() * (maxY - minY);
 
+    // Apply observation time multiplier from difficulty config
+    const obsTimeMultiplier = this.currentConfig?.observationTimeMultiplier ?? 1.0;
+
     // Acquire from pool and configure
     const source = this.sourcePool.acquire();
     source.id = this.nextId++;
     source.type = type;
-    source.x = this.renderer.width + config.size;
+    source.x = this.renderer.width + sourceConfig.size;
     source.y = y;
-    source.size = config.size;
-    source.observationTime = config.observationTime;
+    source.size = sourceConfig.size;
+    source.observationTime = sourceConfig.observationTime * obsTimeMultiplier;
     source.observedTime = 0;
-    source.points = config.points;
-    source.basePoints = config.points;
-    source.speed = config.speed;
-    source.color = config.color;
-    source.lifetime = config.lifetime;
+    source.points = sourceConfig.points;
+    source.basePoints = sourceConfig.points;
+    source.speed = sourceConfig.speed;
+    source.color = sourceConfig.color;
+    source.lifetime = sourceConfig.lifetime;
     source.age = 0;
     source.isComplete = false;
     source.satellitePenalized = false;
   }
 
   private spawnFRB(): void {
-    const config = SOURCE_CONFIGS['frb'];
+    const frbConfig = SOURCE_CONFIGS['frb'];
     const groundY = this.renderer.getGroundY();
 
     // FRBs can appear anywhere in the sky
@@ -140,20 +147,23 @@ export class SourceManager {
     // FRBs appear at random x positions (not just at edge)
     const x = 200 + Math.random() * (this.renderer.width - 400);
 
+    // Apply observation time multiplier from difficulty config
+    const obsTimeMultiplier = this.currentConfig?.observationTimeMultiplier ?? 1.0;
+
     // Acquire from pool and configure
     const source = this.sourcePool.acquire();
     source.id = this.nextId++;
     source.type = 'frb';
     source.x = x;
     source.y = y;
-    source.size = config.size;
-    source.observationTime = config.observationTime;
+    source.size = frbConfig.size;
+    source.observationTime = frbConfig.observationTime * obsTimeMultiplier;
     source.observedTime = 0;
-    source.points = config.points;
-    source.basePoints = config.points;
+    source.points = frbConfig.points;
+    source.basePoints = frbConfig.points;
     source.speed = 0; // FRBs don't move
-    source.color = config.color;
-    source.lifetime = config.lifetime;
+    source.color = frbConfig.color;
+    source.lifetime = frbConfig.lifetime;
     source.age = 0;
     source.isComplete = false;
     source.satellitePenalized = false;

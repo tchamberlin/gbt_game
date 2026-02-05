@@ -1,6 +1,6 @@
 // Deer spawning and management
 
-import type { Deer } from './types.ts';
+import type { Deer, DifficultyConfig } from './types.ts';
 import type { Renderer } from './renderer.ts';
 import { drawDeer } from './sprites.ts';
 import { ObjectPool } from './object-pool.ts';
@@ -8,7 +8,6 @@ import { ObjectPool } from './object-pool.ts';
 const DEER_BASE_SPAWN_INTERVAL = 10.0; // seconds between spawns (slower start)
 const DEER_BASE_SPEED = 180; // pixels per second (faster than groundhogs)
 const DEER_HEALTH = 150; // health points (more than groundhogs)
-const DEER_MIN_LEVEL = 3; // minimum difficulty level to spawn
 
 export const DEER_RADIUS = 25; // collision radius (larger than groundhogs)
 
@@ -49,18 +48,19 @@ export class DeerManager {
     deer.hasBeenDamaged = false;
   }
 
-  update(deltaTime: number, difficultyLevel: number, gbtX: number): void {
+  update(deltaTime: number, difficultyLevel: number, gbtX: number, config: DifficultyConfig): void {
     this.elapsedTime += deltaTime;
     this.spawnTimer += deltaTime;
 
-    // Only spawn deer at level 2 or higher
-    if (difficultyLevel >= DEER_MIN_LEVEL) {
+    // Only spawn deer at configured minimum level
+    if (difficultyLevel >= config.deerMinLevel) {
       // Spawn deer more frequently as difficulty increases
-      const difficultyMultiplier = difficultyLevel - DEER_MIN_LEVEL + 1;
-      const spawnInterval = DEER_BASE_SPAWN_INTERVAL / Math.sqrt(difficultyMultiplier);
+      const difficultyMultiplier = difficultyLevel - config.deerMinLevel + 1;
+      // Apply spawn multiplier from config (higher = slower spawns)
+      const spawnInterval = (DEER_BASE_SPAWN_INTERVAL * config.deerSpawnMultiplier) / Math.sqrt(difficultyMultiplier);
       if (this.spawnTimer >= spawnInterval) {
         this.spawnTimer = 0;
-        this.spawnDeer(difficultyLevel, gbtX);
+        this.spawnDeer(difficultyLevel, gbtX, config);
       }
     }
 
@@ -85,7 +85,7 @@ export class DeerManager {
     }
   }
 
-  private spawnDeer(difficultyLevel: number, gbtX: number): void {
+  private spawnDeer(difficultyLevel: number, gbtX: number, config: DifficultyConfig): void {
     const groundY = this.renderer.getGroundY();
 
     // Spawn from left or right side, moving toward GBT
@@ -94,7 +94,7 @@ export class DeerManager {
     const direction: 1 | -1 = fromLeft ? 1 : -1;
 
     // Speed increases with difficulty
-    const difficultyMultiplier = difficultyLevel - DEER_MIN_LEVEL + 1;
+    const difficultyMultiplier = difficultyLevel - config.deerMinLevel + 1;
     const speed = DEER_BASE_SPEED * (0.8 + Math.random() * 0.4) * Math.sqrt(difficultyMultiplier);
 
     // Acquire from pool and configure
