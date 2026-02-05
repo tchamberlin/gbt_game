@@ -18,7 +18,7 @@ export class AudioManager {
   constructor() {
     // Audio context is created on first user interaction
     // Pre-load menu music
-    this.menuMusic = new Audio('/src/assets/JumpThatGopher.m4a');
+    this.menuMusic = new Audio('/assets/JumpThatGopher.m4a');
     this.menuMusic.loop = true;
     this.menuMusic.preload = 'auto';
   }

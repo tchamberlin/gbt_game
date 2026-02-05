@@ -99,6 +99,11 @@ const server = Bun.serve({
       path = '/index.html';
     }
 
+    // In dev, /assets/ maps to /src/assets/ (in prod, assets are copied to dist/assets/)
+    if (path.startsWith('/assets/')) {
+      path = '/src' + path;
+    }
+
     // Serve files from the project directory
     const filePath = '.' + path;
 
@@ -112,6 +117,10 @@ const server = Bun.serve({
         else if (path.endsWith('.js')) contentType = 'application/javascript';
         else if (path.endsWith('.css')) contentType = 'text/css';
         else if (path.endsWith('.json')) contentType = 'application/json';
+        else if (path.endsWith('.m4a')) contentType = 'audio/mp4';
+        else if (path.endsWith('.mp3')) contentType = 'audio/mpeg';
+        else if (path.endsWith('.png')) contentType = 'image/png';
+        else if (path.endsWith('.svg')) contentType = 'image/svg+xml';
 
         return new Response(file, {
           headers: { 'Content-Type': contentType },
