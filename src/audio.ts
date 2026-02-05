@@ -244,6 +244,11 @@ export class AudioManager {
       this.menuMusicGain.connect(this.masterGain);
       this.menuMusic.volume = 1.0; // Web Audio API controls volume now
     }
+
+    // Reset gain to full volume (may have been faded out previously)
+    if (this.menuMusicGain) {
+      this.menuMusicGain.gain.value = 1.0;
+    }
   }
 
   // Fade out menu music over duration (in seconds)
