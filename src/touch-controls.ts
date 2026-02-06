@@ -55,9 +55,12 @@ export class TouchControls {
       screen.orientation.addEventListener('change', () => this.checkOrientation());
     }
 
-    document.addEventListener('fullscreenchange', () => {
-      this.isFullscreen = !!document.fullscreenElement;
-    });
+    const updateFullscreen = () => {
+      this.isFullscreen = !!(document.fullscreenElement || (document as any).webkitFullscreenElement || (document as any).mozFullScreenElement);
+    };
+    document.addEventListener('fullscreenchange', updateFullscreen);
+    document.addEventListener('webkitfullscreenchange', updateFullscreen);
+    document.addEventListener('mozfullscreenchange', updateFullscreen);
   }
 
   get touchDevice(): boolean {
@@ -154,9 +157,8 @@ export class TouchControls {
 
     if (type === 'radar-toggle') {
       this.radarToggled = !this.radarToggled;
-    } else if (type === 'fullscreen') {
-      this.toggleFullscreen();
     }
+    // Fullscreen is deferred to touchend for Firefox Android compatibility
 
     this.activeTouches.set(id, { x, y, type });
     return type;
@@ -172,6 +174,10 @@ export class TouchControls {
   }
 
   handleTouchEnd(id: number): void {
+    const touch = this.activeTouches.get(id);
+    if (touch?.type === 'fullscreen') {
+      this.toggleFullscreen();
+    }
     this.activeTouches.delete(id);
   }
 
@@ -189,22 +195,29 @@ export class TouchControls {
 
   private toggleFullscreen(): void {
     if (this.isFullscreen) {
-      document.exitFullscreen().catch(() => {});
+      const doc = document as any;
+      const exit = doc.exitFullscreen?.bind(doc) || doc.webkitExitFullscreen?.bind(doc) || doc.mozCancelFullScreen?.bind(doc);
+      if (exit) exit().catch((e: Error) => console.warn('Exit fullscreen failed:', e));
     } else {
-      document.documentElement.requestFullscreen().then(() => {
-        if (screen.orientation && 'lock' in screen.orientation) {
-          (screen.orientation as any).lock('landscape').catch(() => {});
-        }
-      }).catch(() => {});
+      this.requestFullscreen();
     }
   }
 
   requestFullscreen(): void {
-    document.documentElement.requestFullscreen().then(() => {
-      if (screen.orientation && 'lock' in screen.orientation) {
-        (screen.orientation as any).lock('landscape').catch(() => {});
-      }
-    }).catch(() => {});
+    // Try the game container first, then documentElement as fallback
+    const target = document.getElementById('game-container') || document.documentElement;
+    const el = target as any;
+    const request = el.requestFullscreen?.bind(el)
+      || el.webkitRequestFullscreen?.bind(el)
+      || el.mozRequestFullScreen?.bind(el);
+
+    if (request) {
+      request().then(() => {
+        if (screen.orientation && 'lock' in screen.orientation) {
+          (screen.orientation as any).lock('landscape').catch(() => {});
+        }
+      }).catch((e: Error) => console.warn('Fullscreen request failed:', e));
+    }
   }
 
   reset(): void {

@@ -73,19 +73,26 @@ function setupInputHandlers(renderer: Renderer, touchControls: TouchControls): v
 
   // Touch events
   renderer.canvas.addEventListener('touchstart', (event: TouchEvent) => {
-    event.preventDefault();
+    let hasFullscreenTouch = false;
     for (let i = 0; i < event.changedTouches.length; i++) {
       const touch = event.changedTouches[i]!;
       const pos = touchControls.getTouchPosition(touch);
       const type = touchControls.handleTouchStart(touch.identifier, pos.x, pos.y);
 
-      if (type === 'aim') {
+      if (type === 'fullscreen') {
+        hasFullscreenTouch = true;
+      } else if (type === 'aim') {
         // Forward aim touches as clicks for menus + mouse move for gameplay
         game.handleClick(pos.x, pos.y);
         game.handleMouseMove(pos.x, pos.y);
       } else if (type === 'jump') {
         game.handleTouchJump();
       }
+    }
+    // Don't preventDefault for fullscreen touches - Firefox Android needs
+    // the unmodified gesture chain for requestFullscreen() to work
+    if (!hasFullscreenTouch) {
+      event.preventDefault();
     }
     game.updateFromTouch();
   }, { passive: false });
@@ -106,7 +113,19 @@ function setupInputHandlers(renderer: Renderer, touchControls: TouchControls): v
   }, { passive: false });
 
   renderer.canvas.addEventListener('touchend', (event: TouchEvent) => {
-    event.preventDefault();
+    // Check if any ending touch is a fullscreen touch before preventDefault
+    // (Firefox Android needs the gesture to not be cancelled for fullscreen)
+    let hasFullscreenTouch = false;
+    for (let i = 0; i < event.changedTouches.length; i++) {
+      const touch = event.changedTouches[i]!;
+      if (touchControls.getTouchType(touch.identifier) === 'fullscreen') {
+        hasFullscreenTouch = true;
+      }
+    }
+    if (!hasFullscreenTouch) {
+      event.preventDefault();
+    }
+
     for (let i = 0; i < event.changedTouches.length; i++) {
       const touch = event.changedTouches[i]!;
       touchControls.handleTouchEnd(touch.identifier);
