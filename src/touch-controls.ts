@@ -21,21 +21,22 @@ interface TrackedTouch {
 }
 
 // Button layout constants (in game coordinates 1280x720)
-const DPAD_LEFT_X = 70;
-const DPAD_RIGHT_X = 170;
+// All action buttons grouped bottom-left for left thumb
+const DPAD_LEFT_X = 60;
+const DPAD_RIGHT_X = 240;
 const DPAD_Y = 620;
-const DPAD_SIZE = 60;
+const DPAD_SIZE = 80;
 
-const JUMP_X = 1200;
-const JUMP_Y = 630;
-const JUMP_RADIUS = 45;
+const JUMP_X = 150;   // Between left and right
+const JUMP_Y = 610;
+const JUMP_RADIUS = 50;
 
-const RADAR_X = 1200;
-const RADAR_Y = 530;
-const RADAR_RADIUS = 38;
+const RADAR_X = 150;  // Above the jump/dpad cluster
+const RADAR_Y = 500;
+const RADAR_RADIUS = 42;
 
-const FULLSCREEN_SIZE = 36;
-const FULLSCREEN_PADDING = 12;
+const FULLSCREEN_SIZE = 52;
+const FULLSCREEN_PADDING = 10;
 
 export class TouchControls {
   private renderer: Renderer;
@@ -289,42 +290,50 @@ export class TouchControls {
     const size = FULLSCREEN_SIZE;
 
     ctx.save();
-    ctx.globalAlpha = 0.5;
+    ctx.globalAlpha = 0.85;
 
-    // Background
-    ctx.fillStyle = '#333333';
+    // Bright yellow background
+    ctx.fillStyle = this.isFullscreen ? '#666622' : '#ccaa00';
     ctx.beginPath();
-    ctx.roundRect(btnX, btnY, size, size, 6);
+    ctx.roundRect(btnX, btnY, size, size, 8);
     ctx.fill();
 
-    // Icon (expand or collapse)
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 2;
+    // Border
+    ctx.strokeStyle = '#ffee44';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.roundRect(btnX, btnY, size, size, 8);
+    ctx.stroke();
+
+    // Icon - corner brackets
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 3;
+    const m = 10;
+    const a = 10;
 
     if (this.isFullscreen) {
-      // Collapse icon: arrows pointing inward
-      const m = 8;
-      const a = 5;
-      // Top-left
+      // Collapse icon: inward arrows
+      const cx = btnX + size / 2;
+      const cy = btnY + size / 2;
+      const o = 6;
+      // Top-left inward
       ctx.beginPath();
-      ctx.moveTo(btnX + m + a, btnY + m); ctx.lineTo(btnX + m, btnY + m); ctx.lineTo(btnX + m, btnY + m + a);
+      ctx.moveTo(cx - o - a, cy - o); ctx.lineTo(cx - o, cy - o); ctx.lineTo(cx - o, cy - o - a);
       ctx.stroke();
-      // Top-right
+      // Top-right inward
       ctx.beginPath();
-      ctx.moveTo(btnX + size - m - a, btnY + m); ctx.lineTo(btnX + size - m, btnY + m); ctx.lineTo(btnX + size - m, btnY + m + a);
+      ctx.moveTo(cx + o + a, cy - o); ctx.lineTo(cx + o, cy - o); ctx.lineTo(cx + o, cy - o - a);
       ctx.stroke();
-      // Bottom-left
+      // Bottom-left inward
       ctx.beginPath();
-      ctx.moveTo(btnX + m + a, btnY + size - m); ctx.lineTo(btnX + m, btnY + size - m); ctx.lineTo(btnX + m, btnY + size - m - a);
+      ctx.moveTo(cx - o - a, cy + o); ctx.lineTo(cx - o, cy + o); ctx.lineTo(cx - o, cy + o + a);
       ctx.stroke();
-      // Bottom-right
+      // Bottom-right inward
       ctx.beginPath();
-      ctx.moveTo(btnX + size - m - a, btnY + size - m); ctx.lineTo(btnX + size - m, btnY + size - m); ctx.lineTo(btnX + size - m, btnY + size - m - a);
+      ctx.moveTo(cx + o + a, cy + o); ctx.lineTo(cx + o, cy + o); ctx.lineTo(cx + o, cy + o + a);
       ctx.stroke();
     } else {
-      // Expand icon: arrows pointing outward from corners
-      const m = 8;
-      const a = 5;
+      // Expand icon: outward corner brackets
       // Top-left
       ctx.beginPath();
       ctx.moveTo(btnX + m + a, btnY + m); ctx.lineTo(btnX + m, btnY + m); ctx.lineTo(btnX + m, btnY + m + a);
@@ -351,41 +360,42 @@ export class TouchControls {
     const state = this.getState();
 
     ctx.save();
-    ctx.globalAlpha = 0.4;
+    ctx.globalAlpha = 0.65;
 
     // Left button
     const leftActive = state.movingLeft;
-    ctx.fillStyle = leftActive ? '#44aa44' : '#333333';
-    ctx.strokeStyle = '#888888';
-    ctx.lineWidth = 2;
+    ctx.fillStyle = leftActive ? '#44cc44' : '#444444';
+    ctx.strokeStyle = leftActive ? '#66ff66' : '#aaaaaa';
+    ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.roundRect(DPAD_LEFT_X - DPAD_SIZE / 2, DPAD_Y - DPAD_SIZE / 2, DPAD_SIZE, DPAD_SIZE, 8);
+    ctx.roundRect(DPAD_LEFT_X - DPAD_SIZE / 2, DPAD_Y - DPAD_SIZE / 2, DPAD_SIZE, DPAD_SIZE, 10);
     ctx.fill();
     ctx.stroke();
 
-    // Left arrow
-    ctx.fillStyle = leftActive ? '#ffffff' : '#cccccc';
+    // Left arrow (bigger)
+    ctx.fillStyle = leftActive ? '#ffffff' : '#dddddd';
     ctx.beginPath();
-    ctx.moveTo(DPAD_LEFT_X - 15, DPAD_Y);
-    ctx.lineTo(DPAD_LEFT_X + 10, DPAD_Y - 15);
-    ctx.lineTo(DPAD_LEFT_X + 10, DPAD_Y + 15);
+    ctx.moveTo(DPAD_LEFT_X - 20, DPAD_Y);
+    ctx.lineTo(DPAD_LEFT_X + 14, DPAD_Y - 22);
+    ctx.lineTo(DPAD_LEFT_X + 14, DPAD_Y + 22);
     ctx.closePath();
     ctx.fill();
 
     // Right button
     const rightActive = state.movingRight;
-    ctx.fillStyle = rightActive ? '#44aa44' : '#333333';
+    ctx.fillStyle = rightActive ? '#44cc44' : '#444444';
+    ctx.strokeStyle = rightActive ? '#66ff66' : '#aaaaaa';
     ctx.beginPath();
-    ctx.roundRect(DPAD_RIGHT_X - DPAD_SIZE / 2, DPAD_Y - DPAD_SIZE / 2, DPAD_SIZE, DPAD_SIZE, 8);
+    ctx.roundRect(DPAD_RIGHT_X - DPAD_SIZE / 2, DPAD_Y - DPAD_SIZE / 2, DPAD_SIZE, DPAD_SIZE, 10);
     ctx.fill();
     ctx.stroke();
 
-    // Right arrow
-    ctx.fillStyle = rightActive ? '#ffffff' : '#cccccc';
+    // Right arrow (bigger)
+    ctx.fillStyle = rightActive ? '#ffffff' : '#dddddd';
     ctx.beginPath();
-    ctx.moveTo(DPAD_RIGHT_X + 15, DPAD_Y);
-    ctx.lineTo(DPAD_RIGHT_X - 10, DPAD_Y - 15);
-    ctx.lineTo(DPAD_RIGHT_X - 10, DPAD_Y + 15);
+    ctx.moveTo(DPAD_RIGHT_X + 20, DPAD_Y);
+    ctx.lineTo(DPAD_RIGHT_X - 14, DPAD_Y - 22);
+    ctx.lineTo(DPAD_RIGHT_X - 14, DPAD_Y + 22);
     ctx.closePath();
     ctx.fill();
 
@@ -397,28 +407,28 @@ export class TouchControls {
     const jumping = this.getState().jumpPressed;
 
     ctx.save();
-    ctx.globalAlpha = 0.4;
+    ctx.globalAlpha = 0.65;
 
-    ctx.fillStyle = jumping ? '#44aa44' : '#333333';
-    ctx.strokeStyle = '#888888';
-    ctx.lineWidth = 2;
+    ctx.fillStyle = jumping ? '#44cc44' : '#444444';
+    ctx.strokeStyle = jumping ? '#66ff66' : '#aaaaaa';
+    ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.arc(JUMP_X, JUMP_Y, JUMP_RADIUS, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
-    // Up arrow icon
-    ctx.fillStyle = jumping ? '#ffffff' : '#cccccc';
+    // Up arrow icon (bigger)
+    ctx.fillStyle = jumping ? '#ffffff' : '#dddddd';
     ctx.beginPath();
-    ctx.moveTo(JUMP_X, JUMP_Y - 18);
-    ctx.lineTo(JUMP_X - 15, JUMP_Y + 8);
-    ctx.lineTo(JUMP_X + 15, JUMP_Y + 8);
+    ctx.moveTo(JUMP_X, JUMP_Y - 24);
+    ctx.lineTo(JUMP_X - 20, JUMP_Y + 10);
+    ctx.lineTo(JUMP_X + 20, JUMP_Y + 10);
     ctx.closePath();
     ctx.fill();
 
     // Label
-    ctx.globalAlpha = 0.6;
-    this.renderer.drawText('JUMP', JUMP_X, JUMP_Y + 22, '#cccccc', 11, 'center');
+    ctx.globalAlpha = 0.8;
+    this.renderer.drawText('JUMP', JUMP_X, JUMP_Y + 28, '#dddddd', 13, 'center');
 
     ctx.restore();
   }
@@ -427,33 +437,33 @@ export class TouchControls {
     const ctx = this.renderer.ctx;
 
     ctx.save();
-    ctx.globalAlpha = this.radarToggled ? 0.7 : 0.4;
+    ctx.globalAlpha = this.radarToggled ? 0.85 : 0.65;
 
-    ctx.fillStyle = this.radarToggled ? '#aa4444' : '#333333';
-    ctx.strokeStyle = this.radarToggled ? '#ff6666' : '#888888';
-    ctx.lineWidth = 2;
+    ctx.fillStyle = this.radarToggled ? '#cc3333' : '#444444';
+    ctx.strokeStyle = this.radarToggled ? '#ff6666' : '#aaaaaa';
+    ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.arc(RADAR_X, RADAR_Y, RADAR_RADIUS, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
-    // Radar icon - concentric arcs
-    ctx.strokeStyle = this.radarToggled ? '#ffffff' : '#cccccc';
-    ctx.lineWidth = 2;
+    // Radar icon - concentric arcs (bigger)
+    ctx.strokeStyle = this.radarToggled ? '#ffffff' : '#dddddd';
+    ctx.lineWidth = 2.5;
     for (let i = 1; i <= 3; i++) {
       ctx.beginPath();
-      ctx.arc(RADAR_X, RADAR_Y + 5, i * 7, -Math.PI * 0.8, -Math.PI * 0.2);
+      ctx.arc(RADAR_X, RADAR_Y + 3, i * 9, -Math.PI * 0.8, -Math.PI * 0.2);
       ctx.stroke();
     }
     // Dot at center
-    ctx.fillStyle = this.radarToggled ? '#ffffff' : '#cccccc';
+    ctx.fillStyle = this.radarToggled ? '#ffffff' : '#dddddd';
     ctx.beginPath();
-    ctx.arc(RADAR_X, RADAR_Y + 5, 3, 0, Math.PI * 2);
+    ctx.arc(RADAR_X, RADAR_Y + 3, 4, 0, Math.PI * 2);
     ctx.fill();
 
     // Label
-    ctx.globalAlpha = 0.6;
-    this.renderer.drawText('RADAR', RADAR_X, RADAR_Y + 22, this.radarToggled ? '#ff6666' : '#cccccc', 10, 'center');
+    ctx.globalAlpha = 0.8;
+    this.renderer.drawText('RADAR', RADAR_X, RADAR_Y + 28, this.radarToggled ? '#ff6666' : '#dddddd', 13, 'center');
 
     ctx.restore();
   }
