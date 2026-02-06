@@ -3,6 +3,7 @@
 import { Renderer } from './renderer.ts';
 import { Game } from './game.ts';
 import { SpriteCache } from './sprite-cache.ts';
+import { TouchControls } from './touch-controls.ts';
 
 let game: Game;
 let lastTime: number = 0;
@@ -14,15 +15,19 @@ function init(): void {
   const renderer = new Renderer('game-canvas');
   game = new Game(renderer);
 
+  // Set up touch controls
+  const touchControls = new TouchControls(renderer);
+  game.setTouchControls(touchControls);
+
   // Set up input handlers
-  setupInputHandlers(renderer);
+  setupInputHandlers(renderer, touchControls);
 
   // Start game loop
   lastTime = performance.now();
   requestAnimationFrame(gameLoop);
 }
 
-function setupInputHandlers(renderer: Renderer): void {
+function setupInputHandlers(renderer: Renderer, touchControls: TouchControls): void {
   // Mouse move
   renderer.canvas.addEventListener('mousemove', (event: MouseEvent) => {
     const pos = renderer.getMousePosition(event);
@@ -65,6 +70,58 @@ function setupInputHandlers(renderer: Renderer): void {
   renderer.canvas.addEventListener('dragstart', (event: Event) => {
     event.preventDefault();
   });
+
+  // Touch events
+  renderer.canvas.addEventListener('touchstart', (event: TouchEvent) => {
+    event.preventDefault();
+    for (let i = 0; i < event.changedTouches.length; i++) {
+      const touch = event.changedTouches[i]!;
+      const pos = touchControls.getTouchPosition(touch);
+      const type = touchControls.handleTouchStart(touch.identifier, pos.x, pos.y);
+
+      if (type === 'aim') {
+        // Forward aim touches as clicks for menus + mouse move for gameplay
+        game.handleClick(pos.x, pos.y);
+        game.handleMouseMove(pos.x, pos.y);
+      } else if (type === 'jump') {
+        game.handleTouchJump();
+      }
+    }
+    game.updateFromTouch();
+  }, { passive: false });
+
+  renderer.canvas.addEventListener('touchmove', (event: TouchEvent) => {
+    event.preventDefault();
+    for (let i = 0; i < event.changedTouches.length; i++) {
+      const touch = event.changedTouches[i]!;
+      const pos = touchControls.getTouchPosition(touch);
+      touchControls.handleTouchMove(touch.identifier, pos.x, pos.y);
+
+      // Update aim position for aim touches
+      if (touchControls.getTouchType(touch.identifier) === 'aim') {
+        game.handleMouseMove(pos.x, pos.y);
+      }
+    }
+    game.updateFromTouch();
+  }, { passive: false });
+
+  renderer.canvas.addEventListener('touchend', (event: TouchEvent) => {
+    event.preventDefault();
+    for (let i = 0; i < event.changedTouches.length; i++) {
+      const touch = event.changedTouches[i]!;
+      touchControls.handleTouchEnd(touch.identifier);
+    }
+    game.updateFromTouch();
+  }, { passive: false });
+
+  renderer.canvas.addEventListener('touchcancel', (event: TouchEvent) => {
+    event.preventDefault();
+    for (let i = 0; i < event.changedTouches.length; i++) {
+      const touch = event.changedTouches[i]!;
+      touchControls.handleTouchEnd(touch.identifier);
+    }
+    game.updateFromTouch();
+  }, { passive: false });
 }
 
 function gameLoop(currentTime: number): void {

@@ -146,6 +146,14 @@ export class Renderer {
     };
   }
 
+  getTouchPosition(touch: Touch): { x: number; y: number } {
+    const rect = this.canvas.getBoundingClientRect();
+    return {
+      x: (touch.clientX - rect.left) / this.scale,
+      y: (touch.clientY - rect.top) / this.scale,
+    };
+  }
+
   getGroundY(): number {
     return this.height * 0.85;
   }

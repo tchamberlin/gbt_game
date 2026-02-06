@@ -13,6 +13,7 @@ import { UFOManager } from './ufos.ts';
 import { AudioManager } from './audio.ts';
 import { processCollisions, checkGroundhogCollision, checkDeerCollision, checkUFOCollision, beamIntersectsGroundhog, beamIntersectsDeer, beamIntersectsUFO } from './collision.ts';
 import { drawExplosion, drawWheelExplosion, drawDroppedWheel } from './sprites.ts';
+import type { TouchControls } from './touch-controls.ts';
 
 const DIFFICULTY_INTERVAL = 30; // seconds between difficulty increases
 const SATELLITE_PENALTY_RATE = 30; // dollars per second while satellite in beam
@@ -55,6 +56,8 @@ export class Game {
   private radarCostAccumulator: number = 0;
   private droppedWheels: DroppedWheel[] = [];
   private nextWheelId: number = 0;
+  private touchControls: TouchControls | null = null;
+  private mobileInput: HTMLInputElement | null = null;
 
   // Difficulty state
   private selectedDifficulty: DifficultyMode | null = null;
@@ -172,6 +175,11 @@ export class Game {
     this.submitState = 'idle';
     this.submitRank = null;
     this.gameStartTime = Date.now();
+
+    // Reset touch controls
+    if (this.touchControls) {
+      this.touchControls.reset();
+    }
   }
 
   pause(): void {
@@ -193,6 +201,9 @@ export class Game {
   }
 
   update(deltaTime: number): void {
+    // Pause gameplay when portrait mode detected on touch device
+    if (this.touchControls?.touchDevice && this.touchControls.portrait) return;
+
     if (!this.state.isStarted || this.state.isPaused) return;
 
     // Handle game over explosion animation
@@ -203,6 +214,7 @@ export class Game {
       // Activate initials input after explosion
       if (this.explosionProgress > 0.5 && !this.initialsInputActive && this.submitState === 'idle') {
         this.initialsInputActive = true;
+        this.focusMobileInput();
         this.loadLeaderboard();
       }
       return;
@@ -932,17 +944,93 @@ export class Game {
       if (key === 'w' || key === 'W' || key === ' ') {
         this.telescope.jump();
       }
+
+      // Q: observe (same as left click), E: radar (same as right click)
+      if (key === 'q' || key === 'Q') {
+        this.handleMouseDown(0);
+      }
+      if (key === 'e' || key === 'E') {
+        this.handleMouseDown(2);
+      }
     }
   }
 
   handleKeyUp(key: string): void {
     this.keysHeld.delete(key.toLowerCase());
     this.updateMovement();
+
+    // Q: release observe, E: release radar
+    if (key === 'q' || key === 'Q') {
+      this.handleMouseUp(0);
+    }
+    if (key === 'e' || key === 'E') {
+      this.handleMouseUp(2);
+    }
+  }
+
+  setTouchControls(tc: TouchControls): void {
+    this.touchControls = tc;
+  }
+
+  updateFromTouch(): void {
+    if (!this.touchControls || !this.state.isStarted || this.state.isPaused || this.state.isGameOver) return;
+
+    const state = this.touchControls.getState();
+
+    // Beam/radar state from touch: aim touch active determines beam state
+    // If no mouse/keyboard buttons are held, let touch control beam/radar
+    if (this.activeMouseButton === null) {
+      if (state.isTouching && state.radarToggled) {
+        this.state.isBeamBlanked = true;
+        this.state.isRadarActive = true;
+      } else if (state.isTouching && !state.radarToggled) {
+        this.state.isBeamBlanked = false;
+        this.state.isRadarActive = false;
+      } else {
+        this.state.isBeamBlanked = true;
+        this.state.isRadarActive = false;
+      }
+    }
+
+    // Update movement from touch D-pad
+    this.updateMovement();
+  }
+
+  handleTouchJump(): void {
+    if (!this.state.isStarted || this.state.isPaused || this.state.isGameOver) return;
+    this.telescope.jump();
+  }
+
+  private focusMobileInput(): void {
+    if (!this.touchControls?.touchDevice) return;
+
+    if (!this.mobileInput) {
+      this.mobileInput = document.getElementById('mobile-initials') as HTMLInputElement;
+      if (this.mobileInput) {
+        this.mobileInput.addEventListener('input', () => {
+          const val = this.mobileInput!.value.toUpperCase().replace(/[^A-Z]/g, '');
+          // Sync to game state
+          this.playerInitials = val.slice(0, 3);
+          this.mobileInput!.value = this.playerInitials;
+        });
+        this.mobileInput.addEventListener('keydown', (e: KeyboardEvent) => {
+          if (e.key === 'Enter' && this.playerInitials.length === 3) {
+            this.handleScoreSubmit();
+            this.mobileInput!.blur();
+          }
+        });
+      }
+    }
+
+    if (this.mobileInput) {
+      this.mobileInput.value = '';
+      this.mobileInput.focus();
+    }
   }
 
   private updateMovement(): void {
-    const left = this.keysHeld.has('a');
-    const right = this.keysHeld.has('d');
+    const left = this.keysHeld.has('a') || (this.touchControls?.getState().movingLeft ?? false);
+    const right = this.keysHeld.has('d') || (this.touchControls?.getState().movingRight ?? false);
     this.telescope.setMovement(left, right);
   }
 
@@ -1004,6 +1092,12 @@ export class Game {
       this.renderer.ctx.globalAlpha = 1;
     }
 
+    // Draw touch controls (after game objects, before overlays)
+    const isGameActive = this.state.isStarted && !this.state.isPaused && !this.state.isGameOver;
+    if (this.touchControls) {
+      this.touchControls.draw(isGameActive);
+    }
+
     // Draw UI
     this.drawUI();
 
@@ -1019,6 +1113,11 @@ export class Game {
     // Draw leaderboard overlay (on top of everything)
     if (this.showLeaderboardOverlay) {
       this.drawLeaderboardOverlay();
+    }
+
+    // Draw orientation warning last (on top of everything)
+    if (this.touchControls) {
+      this.touchControls.drawOrientationWarning();
     }
   }
 
@@ -1072,8 +1171,12 @@ export class Game {
 
     // Controls hint
     if (this.state.isStarted && !this.state.isPaused && !this.state.isGameOver) {
+      const isTouchDevice = this.touchControls?.touchDevice ?? false;
+      const hintText = isTouchDevice
+        ? 'D-pad: Move  Jump: Jump  Tap: Observe  Radar: Toggle radar mode'
+        : '[A/D] Move  [W/SPACE] Jump  [LEFT CLICK/Q] Observe  [RIGHT CLICK/E] Radar  [P] Pause  [R] Restart';
       this.renderer.drawText(
-        '[A/D] Move  [W/SPACE] Jump  [LEFT CLICK] Observe  [RIGHT CLICK] Radar  [P] Pause  [R] Restart',
+        hintText,
         this.renderer.width / 2,
         this.renderer.height - 20,
         '#aaaaaa',
@@ -1154,7 +1257,8 @@ export class Game {
         'center'
       );
 
-      this.renderer.drawText('Click to continue', centerX, centerY + 150, '#ffffff', 24, 'center');
+      const continueText = this.touchControls?.touchDevice ? 'Tap to continue' : 'Click to continue';
+      this.renderer.drawText(continueText, centerX, centerY + 150, '#ffffff', 24, 'center');
 
       // Credits
       this.renderer.drawText(
@@ -1188,15 +1292,32 @@ export class Game {
       // Instructions column
       this.renderer.drawText('HOW TO PLAY', col1X, 80, '#00ff00', 24, 'center');
 
-      const instructions = [
+      const isTouchDevice = this.touchControls?.touchDevice ?? false;
+      const instructions = isTouchDevice ? [
+        'Tap & drag: aim beam',
+        'D-pad: move left/right',
+        'Jump button: jump',
+        '',
+        'Tap screen: observe',
+        '(beam blanked by default)',
+        '',
+        'Radar toggle: radar mode',
+        '(destroys enemies, $10/s)',
+        '',
+        'Avoid satellites!',
+        'They reset observations',
+        '',
+        'Roll over debris',
+        'to salvage wheels',
+      ] : [
         'Mouse: aim beam',
         'A/D: move left/right',
         'W/SPACE: jump',
         '',
-        'LEFT CLICK: observe',
+        'LEFT CLICK or Q: observe',
         '(beam blanked by default)',
         '',
-        'RIGHT CLICK: radar',
+        'RIGHT CLICK or E: radar',
         '(destroys enemies, $10/s)',
         '',
         'Avoid satellites!',
@@ -1306,8 +1427,9 @@ export class Game {
         }
       }
 
-      // Click to start hint
-      this.renderer.drawText('Click NORMAL or HARD to start', centerX, this.renderer.height - 70, '#ffffff', 20, 'center');
+      // Click/Tap to start hint
+      const startHint = isTouchDevice ? 'Tap NORMAL or HARD to start' : 'Click NORMAL or HARD to start';
+      this.renderer.drawText(startHint, centerX, this.renderer.height - 70, '#ffffff', 20, 'center');
 
       // Credits
       this.renderer.drawText(
@@ -1340,9 +1462,13 @@ export class Game {
     const centerY = this.renderer.height / 2;
 
     this.renderer.drawText('PAUSED', centerX, centerY - 30, '#ffff00', 48, 'center');
-    this.renderer.drawText('Click or press P to resume', centerX, centerY + 30, '#cccccc', 18, 'center');
-    this.renderer.drawText('Press R to restart', centerX, centerY + 60, '#888888', 16, 'center');
-    this.renderer.drawText('[L] Leaderboard', centerX, centerY + 90, '#888888', 14, 'center');
+    const isTouchDevice = this.touchControls?.touchDevice ?? false;
+    const resumeText = isTouchDevice ? 'Tap to resume' : 'Click or press P to resume';
+    this.renderer.drawText(resumeText, centerX, centerY + 30, '#cccccc', 18, 'center');
+    if (!isTouchDevice) {
+      this.renderer.drawText('Press R to restart', centerX, centerY + 60, '#888888', 16, 'center');
+      this.renderer.drawText('[L] Leaderboard', centerX, centerY + 90, '#888888', 14, 'center');
+    }
   }
 
   private drawGameOverScreen(): void {
